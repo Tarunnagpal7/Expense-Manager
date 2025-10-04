@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -12,4 +6,192 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+  PAID
+}
+
+enum ApprovalDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalRuleType {
+  PERCENTAGE
+  SPECIFIC
+  HYBRID
+}
+
+model Company {
+  id        String   @id @default(cuid())
+  name      String
+  country   String?
+  currency  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  approvalFlows ApprovalFlow[]
+  expenses      Expense[]
+  auditLogs     AuditLog[]
+}
+
+model User {
+  id                String   @id @default(cuid())
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  managerId         String?
+  manager           User?    @relation("ManagerDirectReports", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports     User[]   @relation("ManagerDirectReports")
+  email             String   @unique
+  name              String?
+  role              Role
+  passwordHash      String?
+  isManagerApprover Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  createdFlows          ApprovalFlow[]         @relation("flowCreator")
+  submittedExpenses     Expense[]              @relation("submitter")
+  decisions             ApprovalStepDecision[]
+  auditLogs             AuditLog[]
+  specificApproverFlows ApprovalFlow[]         @relation("specificApprover")
+  ApprovalStep          ApprovalStep[]
+}
+
+model Expense {
+  id                   String        @id @default(cuid())
+  companyId            String
+  company              Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById          String
+  createdBy            User          @relation("submitter", fields: [createdById], references: [id], onDelete: Cascade)
+  title                String?
+  description          String?
+  category             String?
+  dateOfExpense        DateTime?
+  amountOriginal       Float
+  currencyOriginal     String
+  amountCompany        Float?
+  exchangeRateAtSubmit Float?
+  status               ExpenseStatus @default(DRAFT)
+  submittedAt          DateTime?
+  resolvedAt           DateTime?
+  isReimbursed         Boolean       @default(false)
+  reimbursementRef     String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  receipts          Receipt[]
+  approvalInstances ApprovalInstance[]
+  auditLogs         AuditLog[]
+}
+
+model Receipt {
+  id         String   @id @default(cuid())
+  expenseId  String
+  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  url        String
+  ocrExtract Json?
+  uploadedAt DateTime @default(now())
+}
+
+model ApprovalFlow {
+  id                  String           @id @default(cuid())
+  companyId           String
+  company             Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdById         String?
+  createdBy           User?            @relation("flowCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  specificApproverId  String?
+  specificApprover    User?            @relation("specificApprover", fields: [specificApproverId], references: [id], onDelete: SetNull)
+  name                String
+  description         String?
+  ruleType            ApprovalRuleType @default(PERCENTAGE)
+  percentageThreshold Float?
+  isDefault           Boolean          @default(false)
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  steps     ApprovalStep[]
+  instances ApprovalInstance[]
+}
+
+model ApprovalStep {
+  id                     String       @id @default(cuid())
+  flowId                 String
+  flow                   ApprovalFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  approverUserId         String?
+  approverUser           User?        @relation(fields: [approverUserId], references: [id], onDelete: SetNull)
+  approverRole           Role?
+  stepOrder              Int
+  allowMultipleApprovers Boolean      @default(false)
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  instanceSteps ApprovalInstanceStep[]
+}
+
+model ApprovalInstance {
+  id               String           @id @default(cuid())
+  expenseId        String
+  expense          Expense          @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  flowId           String
+  flow             ApprovalFlow     @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  currentStepOrder Int?
+  overallStatus    ApprovalDecision @default(PENDING)
+  createdAt        DateTime         @default(now())
+
+  stepsState ApprovalInstanceStep[]
+}
+
+model ApprovalInstanceStep {
+  id              String           @id @default(cuid())
+  instanceId      String
+  instance        ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  stepId          String
+  step            ApprovalStep     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  stepOrder       Int
+  status          ApprovalDecision @default(PENDING)
+  approvalsCount  Int              @default(0)
+  rejectionsCount Int              @default(0)
+  createdAt       DateTime         @default(now())
+
+  decisions ApprovalStepDecision[]
+}
+
+model ApprovalStepDecision {
+  id             String               @id @default(cuid())
+  instanceStepId String
+  instanceStep   ApprovalInstanceStep @relation(fields: [instanceStepId], references: [id], onDelete: Cascade)
+  approverId     String
+  approver       User                 @relation(fields: [approverId], references: [id], onDelete: Cascade)
+  decision       ApprovalDecision     @default(PENDING)
+  comment        String?
+  decidedAt      DateTime?
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  expenseId String?
+  expense   Expense? @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  action    String
+  meta      Json?
+  createdAt DateTime @default(now())
 }
