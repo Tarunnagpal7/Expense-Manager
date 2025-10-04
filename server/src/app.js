@@ -7,7 +7,7 @@ import prisma from "./lib/prisma.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
-import approvalRotes from "./routes/approvalRoutes.js";
+import approvalRoutes from "./routes/approvalRoutes.js";
 import approvalFlowRoutes from "./routes/approvalFlowRoutes.js";
 
 // Load environment variables
@@ -31,6 +31,8 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit", auditRoutes);
+app.use("api/approval", approvalRoutes);
+app.use("/api/approval-flows", approvalFlowRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
