@@ -1,12 +1,19 @@
+// components/auth/Login.js
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'react-hot-toast';
+import { authService } from '../../lib/services/authservices';
 
 const Login = ({ onAuthChange }) => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const from = location.state?.from?.pathname || '/dashboard';
 
   const handleChange = (e) => {
     setFormData({
@@ -17,19 +24,23 @@ const Login = ({ onAuthChange }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login data:', formData);
-    
+    setLoading(true);
+
     try {
-      // Handle login logic here
-      // const response = await User.login(formData);
+      const response = await authService.login(formData);
       
-      // Simulate successful login
-      const authToken = 'demo-token';
+      // Store token and user data
+      localStorage.setItem('authToken', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+      
+      toast.success('Login successful!');
       onAuthChange(true);
-      navigate('/dashboard');
+      navigate(from, { replace: true });
     } catch (error) {
       console.error('Login failed:', error);
-      // Handle login error
+      toast.error(error.message || 'Login failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -62,20 +73,24 @@ const Login = ({ onAuthChange }) => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="you@example.com"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                  disabled={loading}
                 />
               </div>
             </div>
 
             <div>
-            <div className="mt-2 flex justify-between">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <button className="text-sm text-gray-600 hover:text-gray-500 font-semibold">
-                Forgot password?
-              </button>
-            </div>
+              <div className="flex justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Password
+                </label>
+                <button 
+                  type="button"
+                  className="text-sm text-gray-600 hover:text-gray-500 font-semibold"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <div className="mt-1">
                 <input
                   id="password"
@@ -85,7 +100,8 @@ const Login = ({ onAuthChange }) => {
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -93,30 +109,28 @@ const Login = ({ onAuthChange }) => {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-lg shadow-emerald-500/20 text-sm h-10 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-lg shadow-emerald-500/20 text-sm h-10 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Login
+                {loading ? (
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                    Signing in...
+                  </div>
+                ) : (
+                  'Sign in'
+                )}
               </button>
             </div>
           </form>
 
-          <div className="mt-6">
-            
-
-            <div className="mt-6 text-center">
-              <Link
-                to="/signup"
-                className="font-medium text-gray-600 hover:text-gray-500"
-              >
-                Don't have an account? Sign up
-              </Link>
-            </div>
-            
-            <div className="mt-2 text-center">
-              <button className="text-sm text-gray-600 hover:text-gray-500 font-semibold">
-                Forgot password?
-              </button>
-            </div>
+          <div className="mt-6 text-center">
+            <Link
+              to="/signup"
+              className="font-medium text-gray-600 hover:text-gray-500"
+            >
+              Don't have an account? Sign up
+            </Link>
           </div>
         </div>
       </div>
