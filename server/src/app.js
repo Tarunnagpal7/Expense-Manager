@@ -6,7 +6,8 @@ import dotenv from "dotenv";
 import prisma from "./lib/prisma.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
-import reportRoutes from "./routes/reportRoutes.js";import approvalRotes from "./routes/approvalRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import approvalRotes from "./routes/approvalRoutes.js";
 import approvalFlowRoutes from "./routes/approvalFlowRoutes.js";
 
 // Load environment variables
@@ -26,11 +27,10 @@ app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date() });
 });
 
-app.use('/api/expenses', expenseRoutes);
-app.use('/api/finance', financeRoutes);
-app.use('/api/reports', reportRoutes);
-app.use("/api/approval", approvalRotes);
-app.use("/api/approval-flows", approvalFlowRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/finance", financeRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/audit", auditRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
