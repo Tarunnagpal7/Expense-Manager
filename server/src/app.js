@@ -9,6 +9,7 @@ import financeRoutes from "./routes/financeRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
 import approvalFlowRoutes from "./routes/approvalFlowRoutes.js";
+import auditRoutes from "./routes/auditRoutes.js";
 
 // Load environment variables
 dotenv.config();
