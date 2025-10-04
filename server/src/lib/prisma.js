@@ -1,4 +1,5 @@
 import { PrismaClient } from "../generated/prisma/index.js"; // <-- updated path
+//import { withAccelerate } from "@prisma/extension-accelerate";
 
 let prisma;
 

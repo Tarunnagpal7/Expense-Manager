@@ -1,50 +1,86 @@
-import express from "express";
 import prisma from "../lib/prisma.js";
-import { auth } from "../middleware/auth.js";
 import { roleCheck } from "../middleware/roleCheck.js";
+import axios from "axios";
 
-const router = express.Router();
+// Helper: fetch exchange rate
+const getExchangeRate = async (fromCurrency, toCurrency) => {
+  try {
+    const res = await axios.get(
+      `https://api.exchangerate-api.com/v4/latest/${fromCurrency}`
+    );
+    return res.data.rates[toCurrency];
+  } catch (err) {
+    console.error("Error fetching exchange rate:", err.message);
+    return null;
+  }
+};
+
+// Helper: validate required fields for create/update
+const validateExpenseFields = (data) => {
+  const errors = [];
+  if (!data.title || typeof data.title !== "string")
+    errors.push("Title is required and must be a string");
+  if (!data.amountOriginal || typeof data.amountOriginal !== "number")
+    errors.push("Amount is required and must be a number");
+  if (!data.currencyOriginal || typeof data.currencyOriginal !== "string")
+    errors.push("Currency is required and must be a string");
+  if (!data.category || typeof data.category !== "string")
+    errors.push("Category is required and must be a string");
+  if (data.dateOfExpense && isNaN(new Date(data.dateOfExpense)))
+    errors.push("Date of expense must be a valid date");
+  return errors;
+};
 
 /**
- * GET /api/expenses
- * Get all expenses
+ * Get all expenses for the company
  */
-router.get("/", auth, async (req, res) => {
+const getAllExpenses = async (req, res) => {
   try {
     const expenses = await prisma.expense.findMany({
       where: { companyId: req.user.companyId },
       include: { receipts: true, approvalInstances: true },
     });
-    res.json(expenses);
+    return res.json({ success: true, data: expenses });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch expenses" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch expenses" });
   }
-});
+};
 
 /**
- * GET /api/expenses/:id
  * Get single expense by ID
  */
-router.get("/:id", auth, async (req, res) => {
+const getExpenseById = async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id))
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid expense ID" });
+
     const expense = await prisma.expense.findFirst({
-      where: { id: req.params.id, companyId: req.user.companyId },
+      where: { id, companyId: req.user.companyId },
       include: { receipts: true, approvalInstances: true },
     });
-    if (!expense) return res.status(404).json({ error: "Expense not found" });
-    res.json(expense);
+    if (!expense)
+      return res
+        .status(404)
+        .json({ success: false, error: "Expense not found" });
+    return res.json({ success: true, data: expense });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch expense" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch expense" });
   }
-});
+};
 
 /**
- * POST /api/expenses
  * Create new expense
  */
-router.post("/", auth, async (req, res) => {
+const createExpense = async (req, res) => {
   try {
     const {
       title,
@@ -54,34 +90,75 @@ router.post("/", auth, async (req, res) => {
       amountOriginal,
       currencyOriginal,
     } = req.body;
+
+    const errors = validateExpenseFields(req.body);
+    if (errors.length > 0)
+      return res.status(400).json({ success: false, errors });
+
+    // Fetch company currency
+    const company = await prisma.company.findUnique({
+      where: { id: req.user.companyId },
+    });
+    const companyCurrency = company?.currency || "INR";
+
+    // Calculate amount in company currency
+    let amountCompany = amountOriginal;
+    let exchangeRate = 1;
+    if (currencyOriginal !== companyCurrency) {
+      exchangeRate = await getExchangeRate(currencyOriginal, companyCurrency);
+      if (!exchangeRate)
+        return res
+          .status(500)
+          .json({ success: false, error: "Failed to fetch exchange rate" });
+      amountCompany = amountOriginal * exchangeRate;
+    }
 
     const expense = await prisma.expense.create({
       data: {
         title,
         description,
         category,
-        dateOfExpense: dateOfExpense ? new Date(dateOfExpense) : null,
+        dateOfExpense: dateOfExpense ? new Date(dateOfExpense) : new Date(),
         amountOriginal,
         currencyOriginal,
+        amountCompany,
+        exchangeRateAtSubmit: exchangeRate,
         companyId: req.user.companyId,
         createdById: req.user.id,
         status: "DRAFT",
       },
     });
 
-    res.status(201).json(expense);
+    return res.status(201).json({ success: true, data: expense });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to create expense" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to create expense" });
   }
-});
+};
 
 /**
- * PATCH /api/expenses/:id
  * Update an existing expense
  */
-router.patch("/:id", auth, async (req, res) => {
+const updateExpense = async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id))
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid expense ID" });
+
+    const existing = await prisma.expense.findUnique({ where: { id } });
+    if (!existing)
+      return res
+        .status(404)
+        .json({ success: false, error: "Expense not found" });
+    if (existing.createdById !== req.user.id)
+      return res
+        .status(403)
+        .json({ success: false, error: "Not allowed to edit this expense" });
+
     const {
       title,
       description,
@@ -91,43 +168,70 @@ router.patch("/:id", auth, async (req, res) => {
       currencyOriginal,
     } = req.body;
 
-    const expense = await prisma.expense.updateMany({
-      where: {
-        id: req.params.id,
-        companyId: req.user.companyId,
-        createdById: req.user.id,
-      },
+    const errors = validateExpenseFields(req.body);
+    if (errors.length > 0)
+      return res.status(400).json({ success: false, errors });
+
+    // Recalculate amount in company currency if needed
+    let amountCompany = existing.amountCompany;
+    let exchangeRate = existing.exchangeRateAtSubmit;
+    if (
+      amountOriginal &&
+      currencyOriginal &&
+      (amountOriginal !== existing.amountOriginal ||
+        currencyOriginal !== existing.currencyOriginal)
+    ) {
+      const company = await prisma.company.findUnique({
+        where: { id: req.user.companyId },
+      });
+      const companyCurrency = company?.currency || "INR";
+      exchangeRate = await getExchangeRate(currencyOriginal, companyCurrency);
+      if (!exchangeRate)
+        return res
+          .status(500)
+          .json({ success: false, error: "Failed to fetch exchange rate" });
+      amountCompany = amountOriginal * exchangeRate;
+    }
+
+    const updated = await prisma.expense.update({
+      where: { id },
       data: {
         title,
         description,
         category,
-        dateOfExpense: dateOfExpense ? new Date(dateOfExpense) : undefined,
-        amountOriginal,
-        currencyOriginal,
+        dateOfExpense: dateOfExpense
+          ? new Date(dateOfExpense)
+          : existing.dateOfExpense,
+        amountOriginal: amountOriginal ?? existing.amountOriginal,
+        currencyOriginal: currencyOriginal ?? existing.currencyOriginal,
+        amountCompany,
+        exchangeRateAtSubmit: exchangeRate,
       },
     });
 
-    if (expense.count === 0)
-      return res
-        .status(404)
-        .json({ error: "Expense not found or not editable" });
-
-    res.json({ message: "Expense updated successfully" });
+    return res.json({ success: true, data: updated });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to update expense" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to update expense" });
   }
-});
+};
 
 /**
- * PATCH /api/expenses/:id/submit
- * Submit an expense for approval
+ * Submit an expense
  */
-router.patch("/:id/submit", auth, async (req, res) => {
+const submitExpense = async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id))
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid expense ID" });
+
     const expense = await prisma.expense.updateMany({
       where: {
-        id: req.params.id,
+        id,
         companyId: req.user.companyId,
         createdById: req.user.id,
         status: "DRAFT",
@@ -138,24 +242,36 @@ router.patch("/:id/submit", auth, async (req, res) => {
     if (expense.count === 0)
       return res
         .status(404)
-        .json({ error: "Expense not found or cannot be submitted" });
-
-    res.json({ message: "Expense submitted successfully" });
+        .json({
+          success: false,
+          error: "Expense not found or cannot be submitted",
+        });
+    return res.json({
+      success: true,
+      message: "Expense submitted successfully",
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to submit expense" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to submit expense" });
   }
-});
+};
 
 /**
- * DELETE /api/expenses/:id
  * Delete an expense
  */
-router.delete("/:id", auth, async (req, res) => {
+const deleteExpense = async (req, res) => {
   try {
+    const id = Number(req.params.id);
+    if (isNaN(id))
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid expense ID" });
+
     const expense = await prisma.expense.deleteMany({
       where: {
-        id: req.params.id,
+        id,
         companyId: req.user.companyId,
         createdById: req.user.id,
         status: "DRAFT",
@@ -165,30 +281,47 @@ router.delete("/:id", auth, async (req, res) => {
     if (expense.count === 0)
       return res
         .status(404)
-        .json({ error: "Expense not found or cannot be deleted" });
-
-    res.json({ message: "Expense deleted successfully" });
+        .json({
+          success: false,
+          error: "Expense not found or cannot be deleted",
+        });
+    return res.json({ success: true, message: "Expense deleted successfully" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to delete expense" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to delete expense" });
   }
-});
+};
 
 /**
- * GET /api/expenses/user/:userId
  * Get all expenses created by a specific user
  */
-router.get("/user/:userId", auth, async (req, res) => {
+const getUserExpenses = async (req, res) => {
   try {
+    const userId = Number(req.params.userId);
+    if (isNaN(userId))
+      return res.status(400).json({ success: false, error: "Invalid user ID" });
+
     const expenses = await prisma.expense.findMany({
-      where: { createdById: req.params.userId, companyId: req.user.companyId },
+      where: { createdById: userId, companyId: req.user.companyId },
       include: { receipts: true, approvalInstances: true },
     });
-    res.json(expenses);
+    return res.json({ success: true, data: expenses });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch user expenses" });
+    return res
+      .status(500)
+      .json({ success: false, error: "Failed to fetch user expenses" });
   }
-});
+};
 
-module.exports = router;
+export {
+  getAllExpenses,
+  getExpenseById,
+  createExpense,
+  updateExpense,
+  submitExpense,
+  deleteExpense,
+  getUserExpenses,
+};
