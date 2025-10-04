@@ -1,4 +1,3 @@
-// components/auth/Login.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -25,7 +24,7 @@ const Login = ({ onAuthChange }) => {
       // const response = await User.login(formData);
       
       // Simulate successful login
-      localStorage.setItem('authToken', 'demo-token');
+      const authToken = 'demo-token';
       onAuthChange(true);
       navigate('/dashboard');
     } catch (error) {
@@ -35,10 +34,16 @@ const Login = ({ onAuthChange }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="mb-8 text-center">
-          <h2 className="text-3xl font-bold text-gray-900">Sign in to your account</h2>
+          <div className="flex justify-center mb-4">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <span className="text-3xl font-bold text-white">E</span>
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">ExpenseTracker</h1>
+          <h2 className="text-xl font-semibold text-gray-700">Sign in to your account</h2>
         </div>
         
         <div className="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
@@ -88,7 +93,7 @@ const Login = ({ onAuthChange }) => {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm h-10 font-medium text-white bg-gray-900 hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-lg shadow-emerald-500/20 text-sm h-10 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
                 Login
               </button>
