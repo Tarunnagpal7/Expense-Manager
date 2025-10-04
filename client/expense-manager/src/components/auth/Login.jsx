@@ -2,9 +2,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { authService } from '../../lib/services/authservices';
+import { useAuth } from '../../lib/contexts/AuthContext';
 
-const Login = ({ onAuthChange }) => {
+const Login = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -12,6 +12,7 @@ const Login = ({ onAuthChange }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
 
   const from = location.state?.from?.pathname || '/dashboard';
 
@@ -27,14 +28,8 @@ const Login = ({ onAuthChange }) => {
     setLoading(true);
 
     try {
-      const response = await authService.login(formData);
-      
-      // Store token and user data
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
-      
+      await login(formData);
       toast.success('Login successful!');
-      onAuthChange(true);
       navigate(from, { replace: true });
     } catch (error) {
       console.error('Login failed:', error);

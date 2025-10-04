@@ -1,20 +1,21 @@
-// components/auth/Signup.js
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
 import CountryDropdown from '../country/CountryDropdown';
-import { authService } from '../../lib/services/authService';
+import { useAuth } from '../../lib/contexts/AuthContext';
+import { toast } from 'react-hot-toast';
 
-const Signup = ({ onAuthChange }) => {
+const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    country: ''
+    country: '',
+    companyName: ''
   });
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { register } = useAuth();
 
   const handleChange = (e) => {
     setFormData({
@@ -33,47 +34,45 @@ const Signup = ({ onAuthChange }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validation
+    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-
-    if (formData.password.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+    
+    // Validate all required fields
+    if (!formData.name || !formData.email || !formData.password || !formData.country || !formData.companyName) {
+      toast.error('All fields are required');
       return;
     }
-
-    if (!formData.country) {
-      toast.error('Please select a country');
-      return;
-    }
-
-    setLoading(true);
-
+    
+    setIsLoading(true);
+    
     try {
-      const userData = {
+      // Log the data being sent to help with debugging
+      console.log('Sending registration data:', {
         name: formData.name,
         email: formData.email,
         password: formData.password,
         country: formData.country,
-        company_name: `${formData.name}'s Company` // Default company name
-      };
-
-      const response = await authService.register(userData);
+        companyName: formData.companyName
+      });
       
-      // Store token and user data
-      localStorage.setItem('authToken', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      await register({
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        country: formData.country,
+        companyName: formData.companyName
+      });
       
-      toast.success('Account created successfully!');
-      onAuthChange(true);
+      toast.success('Registration successful!');
       navigate('/dashboard');
     } catch (error) {
       console.error('Signup failed:', error);
-      toast.error(error.message || 'Signup failed. Please try again.');
+      toast.error(error.response?.data?.error || 'Registration failed. Please try again.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -117,8 +116,24 @@ const Signup = ({ onAuthChange }) => {
                   required
                   value={formData.name}
                   onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                  disabled={loading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
+                Company Name
+              </label>
+              <div className="mt-1">
+                <input
+                  id="companyName"
+                  name="companyName"
+                  type="text"
+                  required
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -137,8 +152,7 @@ const Signup = ({ onAuthChange }) => {
                   value={formData.email}
                   onChange={handleChange}
                   placeholder="you@example.com"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                  disabled={loading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -157,8 +171,7 @@ const Signup = ({ onAuthChange }) => {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="Min. 8 characters"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                  disabled={loading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -177,8 +190,7 @@ const Signup = ({ onAuthChange }) => {
                   value={formData.confirmPassword}
                   onChange={handleChange}
                   placeholder="Re-enter password"
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                  disabled={loading}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 />
               </div>
             </div>
@@ -191,7 +203,6 @@ const Signup = ({ onAuthChange }) => {
                 <CountryDropdown 
                   value={formData.country}
                   onChange={handleCountryChange}
-                  disabled={loading}
                 />
               </div>
             </div>
@@ -199,17 +210,10 @@ const Signup = ({ onAuthChange }) => {
             <div>
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-lg shadow-emerald-500/20 text-sm h-10 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-lg shadow-emerald-500/20 text-sm h-10 font-medium text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {loading ? (
-                  <div className="flex items-center">
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                    Creating account...
-                  </div>
-                ) : (
-                  'Create account'
-                )}
+                {isLoading ? 'Creating Account...' : 'Create Account'}
               </button>
             </div>
           </form>

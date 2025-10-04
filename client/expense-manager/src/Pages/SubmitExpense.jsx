@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User } from "@/entities/User";
-import { Company } from "@/entities/Company";
+import { companyService } from "@/lib/services/companyService";
 import { Expense } from "@/entities/Expense";
 import { ExpenseApproval } from "@/entities/ExpenseApproval";
 import { ApprovalSequence } from "@/entities/ApprovalSequence";
@@ -36,21 +36,28 @@ export default function SubmitExpense() {
   const [isScanning, setIsScanning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const userData = await User.me();
-    setUser(userData);
+    try {
+      const userData = await User.me();
+      setUser(userData);
 
-    if (userData.company_id) {
-      const companies = await Company.filter({ id: userData.company_id });
-      if (companies.length > 0) {
-        setCompany(companies[0]);
-        setFormData(prev => ({ ...prev, currency_original: companies[0].default_currency }));
+      if (userData.company_id) {
+        const company = await companyService.getCompany(userData.company_id);
+        if (company) {
+          setCompany(company);
+          setFormData(prev => ({ ...prev, currency_original: company.currency || 'USD' }));
+        }
       }
+    } catch (error) {
+      console.error("Error loading company data:", error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -108,10 +115,15 @@ export default function SubmitExpense() {
     setIsSubmitting(true);
 
     try {
+      // Check if company data is loaded
+      if (!company) {
+        throw new Error("Company information not loaded. Please refresh the page and try again.");
+      }
+
       const convertedAmount = await convertCurrency(
         parseFloat(formData.amount_original),
         formData.currency_original,
-        company.default_currency
+        company.currency || 'USD'
       );
 
       const expense = await Expense.create({
@@ -252,7 +264,7 @@ export default function SubmitExpense() {
                   <CurrencyConverter
                     amount={formData.amount_original}
                     currency={formData.currency_original}
-                    targetCurrency={company?.default_currency}
+                    targetCurrency={company?.currency}
                     onAmountChange={(value) => setFormData({...formData, amount_original: value})}
                     onCurrencyChange={(value) => setFormData({...formData, currency_original: value})}
                   />
@@ -281,10 +293,10 @@ export default function SubmitExpense() {
 
                   <Button
                     type="submit"
-                    disabled={isSubmitting || !formData.category || !formData.amount_original}
+                    disabled={isSubmitting || !formData.category || !formData.amount_original || !company || isLoading}
                     className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 h-12"
                   >
-                    {isSubmitting ? 'Submitting...' : 'Submit Expense'}
+                    {isLoading ? 'Loading...' : isSubmitting ? 'Submitting...' : 'Submit Expense'}
                   </Button>
                 </form>
               </CardContent>

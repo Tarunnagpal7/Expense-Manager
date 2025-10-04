@@ -12,4 +12,7 @@ router.post("/login", AuthController.login);
 router.get("/profile", auth, AuthController.getProfile);
 router.post("/logout", auth, AuthController.logout);
 
+router.post("/forgot-password", AuthController.forgotPassword);
+router.post("/reset-password", AuthController.resetPassword);
+
 export default router;

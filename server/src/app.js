@@ -12,11 +12,7 @@ import reportRoutes from "./routes/reportRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
 import approvalFlowRoutes from "./routes/approvalFlowRoutes.js";
 import auditRoutes from "./routes/auditRoutes.js";
-<<<<<<< HEAD
-=======
-import authRoutes from "./routes/authRoutes.js";
-import userRoutes from "./routes/userRoutes.js";
->>>>>>> 3023fd8417ea886bf7feab55f53ed296dd25fe0f
+import companyRoutes from "./routes/companyRoutes.js";
 
 // Load environment variables
 dotenv.config();
@@ -25,7 +21,14 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 
 // Middlewares
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:5173", // Frontend URL
+    credentials: true, // Allow credentials (cookies, authorization headers)
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
 app.use(express.json({ limit: "10mb" })); // Handle JSON requests
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev")); // Logging
@@ -43,8 +46,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/approval", approvalRoutes);
 app.use("/api/approval-flows", approvalFlowRoutes);
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
+app.use("/api/companies", companyRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {

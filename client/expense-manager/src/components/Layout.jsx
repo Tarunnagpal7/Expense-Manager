@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import { User } from "@/entities/User";
+import { createPageUrl } from "../utils";
+import { useAuth } from "../lib/contexts/AuthContext";
 import {
   LayoutDashboard,
   Receipt,
@@ -27,31 +27,18 @@ import {
   SidebarFooter,
   SidebarProvider,
   SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from "./ui/sidebar";
+import { Button } from "./ui/button";
+import { Avatar, AvatarFallback } from "./ui/avatar";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  const loadUser = async () => {
-    try {
-      const userData = await User.me();
-      setUser(userData);
-    } catch (error) {
-      console.error("Not authenticated");
-    }
-  };
-
   const handleLogout = async () => {
-    await User.logout();
+    await logout();
     navigate("/login"); // Navigate to login page after logout
   };
 
@@ -176,17 +163,17 @@ export default function Layout({ children, currentPageName }) {
           <SidebarFooter className="border-t border-slate-200 p-4">
             {user ? (
               <div className="space-y-3">
-                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                   <Avatar className="w-10 h-10 border-2 border-emerald-500">
                     <AvatarFallback className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-semibold">
-                      {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                      {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 text-sm truncate">{user.full_name}</p>
-                    <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                    <p className="font-semibold text-slate-900 text-sm truncate">{user?.name}</p>
+                    <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                     <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
-                      {user.role === 'admin' ? 'Administrator' : 'Employee'}
+                      {user?.role === 'ADMIN' ? 'Administrator' : 'Employee'}
                     </span>
                   </div>
                 </div>

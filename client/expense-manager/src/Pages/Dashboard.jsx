@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { User } from "@/entities/User";
-import { Company } from "@/entities/Company";
-import { Expense } from "@/entities/Expense";
-import { ExpenseApproval } from "@/entities/ExpenseApproval";
-import { AuditLog } from "@/entities/AuditLog";
-import { Button } from "@/components/ui/button";
+import { Button } from "../components/ui/button";
 import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
+import { createPageUrl } from "../utils";
 import { Plus, TrendingUp, Clock, CheckCircle, XCircle, DollarSign, FileText, Users } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "../components/ui/skeleton";
 import { format } from "date-fns";
+import { useAuth } from "../lib/contexts/AuthContext";
+import { expenseService } from "../lib/services/expenseService";
+import { reportService } from "../lib/services/reportService";
 
 import StatCard from "../components/dashboard/StatCard";
 import ExpenseTable from "../components/dashboard/ExpenseTable";
@@ -18,7 +16,7 @@ import RecentActivity from "../components/dashboard/RecentActivity";
 import CompanySetupWizard from "../components/dashboard/CompanySetupWizard";
 
 export default function Dashboard() {
-  const [user, setUser] = useState(null);
+  const { user } = useAuth();
   const [company, setCompany] = useState(null);
   const [expenses, setExpenses] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState([]);
@@ -29,60 +27,47 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const loadData = async () => {
     try {
-      const userData = await User.me();
-      setUser(userData);
+      if (!user) {
+        setIsLoading(false);
+        return;
+      }
 
-      if (!userData.company_id && userData.role === 'admin') {
+      if (!user.company && user.role === 'ADMIN') {
         setShowSetupWizard(true);
         setIsLoading(false);
         return;
       }
 
-      if (userData.company_id) {
-        const companies = await Company.filter({ id: userData.company_id });
-        if (companies.length > 0) {
-          setCompany(companies[0]);
-        }
+      if (user.company) {
+        setCompany(user.company);
       }
 
-      if (userData.role === 'admin') {
-        const allExpenses = await Expense.filter({ company_id: userData.company_id }, '-created_date');
-        setExpenses(allExpenses);
+      if (user.role === 'ADMIN') {
+        const expensesResponse = await expenseService.getAllExpenses();
+        setExpenses(expensesResponse.data || []);
         
-        const allApprovals = await ExpenseApproval.filter({ status: 'pending' });
-        setPendingApprovals(allApprovals);
-
-        const logs = await AuditLog.list('-created_date', 10);
-        setRecentActivity(logs);
+        const reportResponse = await reportService.getOverviewReport();
+        setStats(reportResponse);
 
         setStats({
-          totalExpenses: allExpenses.length,
-          pendingCount: allExpenses.filter(e => e.status === 'pending' || e.status === 'in_review').length,
-          approvedCount: allExpenses.filter(e => e.status === 'approved').length,
-          totalAmount: allExpenses.reduce((sum, e) => sum + (e.amount_converted || 0), 0)
+          totalExpenses: expensesResponse.data?.length || 0,
+          pendingCount: expensesResponse.data?.filter(e => e.status === 'SUBMITTED' || e.status === 'PENDING_APPROVAL').length || 0,
+          approvedCount: expensesResponse.data?.filter(e => e.status === 'APPROVED').length || 0,
+          totalAmount: reportResponse.totalExpenses || 0
         });
       } else {
-        const myExpenses = await Expense.filter({ user_email: userData.email }, '-created_date');
-        setExpenses(myExpenses);
-
-        const myApprovals = await ExpenseApproval.filter({ 
-          approver_email: userData.email,
-          status: 'pending' 
-        });
-        setPendingApprovals(myApprovals);
-
-        const myLogs = await AuditLog.filter({ user_email: userData.email }, '-created_date', 10);
-        setRecentActivity(myLogs);
+        const myExpensesResponse = await expenseService.getUserExpenses(user.id);
+        setExpenses(myExpensesResponse.data || []);
 
         setStats({
-          totalExpenses: myExpenses.length,
-          pendingCount: myExpenses.filter(e => e.status === 'pending' || e.status === 'in_review').length,
-          approvedCount: myExpenses.filter(e => e.status === 'approved').length,
-          totalAmount: myExpenses.reduce((sum, e) => sum + (e.amount_converted || 0), 0)
+          totalExpenses: myExpensesResponse.data?.length || 0,
+          pendingCount: myExpensesResponse.data?.filter(e => e.status === 'SUBMITTED' || e.status === 'PENDING_APPROVAL').length || 0,
+          approvedCount: myExpensesResponse.data?.filter(e => e.status === 'APPROVED').length || 0,
+          totalAmount: myExpensesResponse.data?.reduce((sum, e) => sum + (e.amountCompany || 0), 0) || 0
         });
       }
     } catch (error) {
