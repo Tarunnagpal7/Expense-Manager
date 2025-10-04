@@ -1,13 +1,14 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "main": "server.js",
+  "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.js",
-    "build": "prisma generate",
-    "migrate": "prisma migrate dev",
-    "studio": "prisma studio"
+    "start": "node server/app.js",
+    "dev": "nodemon server/app.js",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio"
   },
   "keywords": [],
   "author": "",
