@@ -12,6 +12,11 @@ import reportRoutes from "./routes/reportRoutes.js";
 import approvalRoutes from "./routes/approvalRoutes.js";
 import approvalFlowRoutes from "./routes/approvalFlowRoutes.js";
 import auditRoutes from "./routes/auditRoutes.js";
+<<<<<<< HEAD
+=======
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+>>>>>>> 3023fd8417ea886bf7feab55f53ed296dd25fe0f
 
 // Load environment variables
 dotenv.config();
@@ -38,6 +43,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/audit", auditRoutes);
 app.use("/api/approval", approvalRoutes);
 app.use("/api/approval-flows", approvalFlowRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
