@@ -7,7 +7,7 @@ import * as expensesController from '../controllers/expenseController.js';
 const router = Router();
 
 // Routes
-router.get('/', expensesController.getAllExpenses);
+router.get('/',auth, expensesController.getAllExpenses);
 router.get('/:id', auth, expensesController.getExpenseById);
 router.post('/', auth, expensesController.createExpense);
 router.patch('/:id', auth, expensesController.updateExpense);

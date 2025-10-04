@@ -7,6 +7,7 @@ import prisma from "./lib/prisma.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import auditRoutes from "./routes/auditRoutes.js";
 // Load environment variables
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.get("/api/health", (req, res) => {
 app.use('/api/expenses', expenseRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Global error handler
 app.use((err, req, res, next) => {
