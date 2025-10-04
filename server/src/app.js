@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
-import prisma from "./lib/prisma";
+import prisma from "./lib/prisma.js";
 
 // Load environment variables
 dotenv.config();

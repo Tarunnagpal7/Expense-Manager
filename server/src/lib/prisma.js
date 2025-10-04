@@ -1,11 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient } from "../generated/prisma/index.js"; // <-- updated path
 
 let prisma;
 
 if (process.env.NODE_ENV === "production") {
   prisma = new PrismaClient();
 } else {
-  // Prevent multiple instances during hot reloads in development
   if (!global.prisma) {
     global.prisma = new PrismaClient();
   }
