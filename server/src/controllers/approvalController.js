@@ -10,8 +10,7 @@ import {
 // Get all pending approvals for logged-in user
 export const getPendingApprovals = async (req, res) => {
   try {
-    // ❗TEMP: Hardcoded userId until auth is working
-    const userId = "cmgbze3f50002w5es98pwsun8";
+    const userId = req.user.id;
     const approvals = await getPending(userId);
     res.json(approvals);
   } catch (err) {
@@ -24,7 +23,7 @@ export const decideApproval = async (req, res) => {
   try {
     const { decision, comment } = req.body;
     const { instanceStepId } = req.params;
-    const userId = "manager_user_id"; // TEMP until auth works
+    const userId = req.user.id;
 
     const result = await decide(instanceStepId, userId, decision, comment);
     res.json(result);

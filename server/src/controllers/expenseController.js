@@ -54,8 +54,8 @@ const getAllExpenses = async (req, res) => {
  */
 const getExpenseById = async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id))
+    const id = req.params.id;
+    if (!id)
       return res
         .status(400)
         .json({ success: false, error: "Invalid expense ID" });
@@ -143,8 +143,8 @@ const createExpense = async (req, res) => {
  */
 const updateExpense = async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id))
+    const id = req.params.id;
+    if (!id)
       return res
         .status(400)
         .json({ success: false, error: "Invalid expense ID" });
@@ -223,8 +223,8 @@ const updateExpense = async (req, res) => {
  */
 const submitExpense = async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id))
+    const id = req.params.id;
+    if (!id)
       return res
         .status(400)
         .json({ success: false, error: "Invalid expense ID" });
@@ -240,12 +240,10 @@ const submitExpense = async (req, res) => {
     });
 
     if (expense.count === 0)
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error: "Expense not found or cannot be submitted",
-        });
+      return res.status(404).json({
+        success: false,
+        error: "Expense not found or cannot be submitted",
+      });
     return res.json({
       success: true,
       message: "Expense submitted successfully",
@@ -263,8 +261,8 @@ const submitExpense = async (req, res) => {
  */
 const deleteExpense = async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (isNaN(id))
+    const id = req.params.id;
+    if (!id)
       return res
         .status(400)
         .json({ success: false, error: "Invalid expense ID" });
@@ -279,12 +277,10 @@ const deleteExpense = async (req, res) => {
     });
 
     if (expense.count === 0)
-      return res
-        .status(404)
-        .json({
-          success: false,
-          error: "Expense not found or cannot be deleted",
-        });
+      return res.status(404).json({
+        success: false,
+        error: "Expense not found or cannot be deleted",
+      });
     return res.json({ success: true, message: "Expense deleted successfully" });
   } catch (err) {
     console.error(err);
@@ -299,8 +295,8 @@ const deleteExpense = async (req, res) => {
  */
 const getUserExpenses = async (req, res) => {
   try {
-    const userId = Number(req.params.userId);
-    if (isNaN(userId))
+    const userId = req.params.userId;
+    if (!userId)
       return res.status(400).json({ success: false, error: "Invalid user ID" });
 
     const expenses = await prisma.expense.findMany({

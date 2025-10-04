@@ -1,5 +1,3 @@
-
-
 /**
  * Role-based access middleware
  * Usage:

@@ -1,7 +1,7 @@
-import express from 'express';
-import { UserController } from '../controllers/userController.js';
-import { auth } from '../middleware/auth.js';
-import { requireAdmin, requireRole } from '../middleware/roleCheck.js';
+import express from "express";
+import { UserController } from "../controllers/userController.js";
+import { auth } from "../middleware/auth.js";
+import { roleCheck } from "../middleware/roleCheck.js";
 
 const router = express.Router();
 
@@ -9,12 +9,16 @@ const router = express.Router();
 router.use(auth);
 
 // Only admin can manage users
-router.get('/', requireAdmin, UserController.getUsers);
-router.post('/', requireAdmin, UserController.createUser);
-router.put('/:id', requireAdmin, UserController.updateUser);
-router.delete('/:id', requireAdmin, UserController.deleteUser);
+router.get("/", roleCheck(["ADMIN"]), UserController.getUsers);
+router.post("/", roleCheck(["ADMIN"]), UserController.createUser);
+router.put("/:id", roleCheck(["ADMIN"]), UserController.updateUser);
+router.delete("/:id", roleCheck(["ADMIN"]), UserController.deleteUser);
 
 // Managers and above can view managers list
-router.get('/managers', requireRole(['ADMIN', 'MANAGER']), UserController.getManagers);
+router.get(
+  "/managers",
+  roleCheck(["ADMIN", "MANAGER"]),
+  UserController.getManagers
+);
 
 export default router;

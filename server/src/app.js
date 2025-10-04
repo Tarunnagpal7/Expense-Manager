@@ -1,9 +1,11 @@
-// server.js
+// app.js
 import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
 import prisma from "./lib/prisma.js";
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 import expenseRoutes from "./routes/expenseRoutes.js";
 import financeRoutes from "./routes/financeRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
@@ -28,11 +30,13 @@ app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date() });
 });
 
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit", auditRoutes);
-app.use("api/approval", approvalRoutes);
+app.use("/api/approval", approvalRoutes);
 app.use("/api/approval-flows", approvalFlowRoutes);
 
 // Global error handler
