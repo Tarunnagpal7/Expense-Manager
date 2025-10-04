@@ -1,38 +1,30 @@
-import jwt from "jsonwebtoken";
-import prisma from "../lib/prisma";
+
+import jwt from 'jsonwebtoken';
+import prisma from '../lib/prisma.js';
 
 export const auth = async (req, res, next) => {
   try {
-    // Expect header: Authorization: Bearer <token>
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Authorization token missing" });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization token missing' });
     }
 
-    const token = authHeader.split(" ")[1];
+    const token = authHeader.split(' ')[1];
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      console.error("⚠️ JWT_SECRET not set in environment");
-      return res.status(500).json({ error: "Server configuration error" });
+      console.error('⚠️ JWT_SECRET not set in environment');
+      return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    // Verify token and extract payload
     const decoded = jwt.verify(token, secret);
-    if (!decoded?.userId) {
-      return res.status(401).json({ error: "Invalid token" });
-    }
+    if (!decoded?.userId) return res.status(401).json({ error: 'Invalid token' });
 
-    // Fetch the user from the database
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       include: { company: true },
     });
+    if (!user) return res.status(401).json({ error: 'User not found' });
 
-    if (!user) {
-      return res.status(401).json({ error: "User not found" });
-    }
-
-    // Attach to request for downstream access
     req.user = {
       id: user.id,
       email: user.email,
@@ -44,7 +36,7 @@ export const auth = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.error("Auth middleware error:", err.message);
-    return res.status(401).json({ error: "Unauthorized" });
+    console.error('Auth middleware error:', err.message);
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 };
