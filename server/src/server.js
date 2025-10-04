@@ -1,9 +1,9 @@
 // server.js
-import express from 'express';
-import cors from 'cors';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import prisma from './lib/prisma.js';
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
+import dotenv from "dotenv";
+import prisma from "./lib/prisma.js";
 
 // Load environment variables
 dotenv.config();
@@ -13,13 +13,13 @@ const PORT = process.env.PORT || 5000;
 
 // Middlewares
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Handle JSON requests
+app.use(express.json({ limit: "10mb" })); // Handle JSON requests
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('dev')); // Logging
+app.use(morgan("dev")); // Logging
 
 // Health check route
-app.get('/api/health', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date() });
+app.get("/api/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date() });
 });
 
 // Global error handler
@@ -27,7 +27,7 @@ app.use((err, req, res, next) => {
   console.error(err);
   res.status(err.status || 500).json({
     error: {
-      message: err.message || 'Internal Server Error',
+      message: err.message || "Internal Server Error",
     },
   });
 });
@@ -38,14 +38,14 @@ app.listen(PORT, async () => {
     await prisma.$connect();
     console.log(`Server running on http://localhost:${PORT}`);
   } catch (err) {
-    console.error('Failed to connect to database:', err);
+    console.error("Failed to connect to database:", err);
     process.exit(1);
   }
 });
 
 // Handle graceful shutdown
-process.on('SIGINT', async () => {
+process.on("SIGINT", async () => {
   await prisma.$disconnect();
-  console.log('Server gracefully stopped');
+  console.log("Server gracefully stopped");
   process.exit(0);
 });
