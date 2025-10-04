@@ -47,13 +47,13 @@ export default function ExpenseTable({ expenses, userRole, currencySymbol }) {
                       transition={{ delay: index * 0.05 }}
                       className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
                     >
-                      <TableCell className="font-medium">{expense.user_name}</TableCell>
+                      <TableCell className="font-medium">{expense.createdBy?.name || 'Unknown User'}</TableCell>
                       <TableCell>{expense.category}</TableCell>
                       <TableCell className="font-semibold">
-                        {currencySymbol}{expense.amount_converted?.toFixed(2)}
+                        {currencySymbol}{expense.amountCompany?.toFixed(2) || expense.amountOriginal?.toFixed(2) || '0.00'}
                       </TableCell>
                       <TableCell className="text-slate-600">
-                        {format(new Date(expense.expense_date), 'MMM d, yyyy')}
+                        {expense.dateOfExpense ? format(new Date(expense.dateOfExpense), 'MMM d, yyyy') : 'N/A'}
                       </TableCell>
                       <TableCell>
                         <Badge className={`${statusColors[expense.status]} border font-medium`}>

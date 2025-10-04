@@ -1,50 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '../../lib/contexts/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('token');
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      if (!token) {
-        setIsAuthorized(false);
-        setIsLoading(false);
-        return;
-      }
-      
-      // If no specific roles are required or user role is in allowed roles
-      if (allowedRoles.length === 0 || allowedRoles.includes(user.role)) {
-        setIsAuthorized(true);
-      } else {
-        toast.error('You do not have permission to access this page');
-        setIsAuthorized(false);
-      }
-      
-      setIsLoading(false);
-    };
-    
-    checkAuth();
-  }, [allowedRoles]);
-  
-  if (isLoading) {
+  // Show loading spinner while authentication is being checked
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
       </div>
     );
   }
-  
-  if (!isAuthorized) {
-    // Save the location they tried to access for redirect after login
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated || !user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
+
+  // Check role-based access if specific roles are required
+  if (allowedRoles.length > 0) {
+    const userRole = user.role?.toLowerCase();
+    const hasPermission = allowedRoles.some(role => 
+      role.toLowerCase() === userRole
+    );
+
+    if (!hasPermission) {
+      toast.error('You do not have permission to access this page');
+      
+      // Redirect to appropriate dashboard based on user role
+      const userRole = user.role?.toLowerCase();
+      if (userRole === 'manager') {
+        return <Navigate to="/manager-dashboard" replace />;
+      } else {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
+  }
+
   return children;
 };
 

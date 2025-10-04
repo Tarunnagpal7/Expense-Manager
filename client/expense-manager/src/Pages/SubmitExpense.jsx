@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User } from "@/entities/User";
+import { authService } from "@/lib/services/authService";
 import { companyService } from "@/lib/services/companyService";
-import { Expense } from "@/entities/Expense";
-import { ExpenseApproval } from "@/entities/ExpenseApproval";
-import { ApprovalSequence } from "@/entities/ApprovalSequence";
-import { AuditLog } from "@/entities/AuditLog";
+import { expenseService } from "@/lib/services/expenseService";
 // import { UploadFile, ExtractDataFromUploadedFile } from "@/integrations/Core";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,15 +41,13 @@ export default function SubmitExpense() {
 
   const loadData = async () => {
     try {
-      const userData = await User.me();
+      const response = await authService.getProfile();
+      const userData = response.user;
       setUser(userData);
 
-      if (userData.company_id) {
-        const company = await companyService.getCompany(userData.company_id);
-        if (company) {
-          setCompany(company);
-          setFormData(prev => ({ ...prev, currency_original: company.currency || 'USD' }));
-        }
+      if (userData.company) {
+        setCompany(userData.company);
+        setFormData(prev => ({ ...prev, currency_original: userData.company.currency || 'USD' }));
       }
     } catch (error) {
       console.error("Error loading company data:", error);
@@ -126,53 +121,19 @@ export default function SubmitExpense() {
         company.currency || 'USD'
       );
 
-      const expense = await Expense.create({
-        ...formData,
-        company_id: company.id,
-        user_email: user.email,
-        user_name: user.full_name,
-        amount_converted: parseFloat(convertedAmount),
-        status: 'pending',
-        current_approval_step: 1
-      });
+      const expenseData = {
+        title: formData.category,
+        description: formData.description,
+        category: formData.category,
+        dateOfExpense: new Date(formData.expense_date),
+        amountOriginal: parseFloat(formData.amount_original),
+        currencyOriginal: formData.currency_original,
+        amountCompany: parseFloat(convertedAmount),
+        exchangeRateAtSubmit: parseFloat(convertedAmount) / parseFloat(formData.amount_original),
+        status: 'DRAFT'
+      };
 
-      const sequences = await ApprovalSequence.filter(
-        { company_id: company.id },
-        'sequence_order'
-      );
-
-      if (sequences.length > 0) {
-        const firstSequence = sequences[0];
-        let approverEmail = null;
-
-        if (firstSequence.specific_user_email) {
-          approverEmail = firstSequence.specific_user_email;
-        } else if (firstSequence.role === 'admin') {
-          approverEmail = company.admin_email;
-        } else if (firstSequence.role === 'manager' && user.manager_email) {
-          approverEmail = user.manager_email;
-        }
-
-        if (approverEmail) {
-          await ExpenseApproval.create({
-            expense_id: expense.id,
-            approver_email: approverEmail,
-            approver_name: 'Approver',
-            sequence_order: 1,
-            status: 'pending'
-          });
-
-          await Expense.update(expense.id, { status: 'in_review' });
-        }
-      }
-
-      await AuditLog.create({
-        user_email: user.email,
-        user_name: user.full_name,
-        action: `Submitted expense: ${formData.category} - ${company.currency_symbol}${convertedAmount}`,
-        reference_id: expense.id,
-        reference_type: 'expense'
-      });
+      const expense = await expenseService.createExpense(expenseData);
 
       setShowSuccess(true);
       setTimeout(() => {
@@ -180,6 +141,7 @@ export default function SubmitExpense() {
       }, 2000);
     } catch (error) {
       console.error("Error submitting expense:", error);
+      alert("Error submitting expense: " + (error.message || "Unknown error"));
     }
     setIsSubmitting(false);
   };

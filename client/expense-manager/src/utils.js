@@ -3,7 +3,9 @@
 // Define your application routes in one place
 const routes = {
   Dashboard: "/dashboard",
+  ManagerDashboard: "/manager-dashboard",
   SubmitExpense: "/submit-expense",
+  ExpenseDetails: "/expense/:id",
   ManageUsers: "/manage-users",
   ApprovalSettings: "/approval-settings",
   CompanySettings: "/company-settings",

@@ -370,7 +370,7 @@ export class UserController {
       const orConditions = [{ isManagerApprover: true }];
 
       // Only include role conditions for roles that exist in our enum
-      const managerRoles = ["ADMIN", "MANAGER", "DIRECTOR"];
+      const managerRoles = ["ADMIN", "MANAGER"];
 
       // Check which manager roles actually exist in our database
       const existingManagerRoles = [];

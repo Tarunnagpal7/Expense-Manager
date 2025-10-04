@@ -36,7 +36,7 @@ export default function Dashboard() {
         return;
       }
 
-      if (!user.company && user.role === 'ADMIN') {
+      if (!user.company && user.role?.toLowerCase() === 'admin') {
         setShowSetupWizard(true);
         setIsLoading(false);
         return;
@@ -46,7 +46,7 @@ export default function Dashboard() {
         setCompany(user.company);
       }
 
-      if (user.role === 'ADMIN') {
+      if (user.role?.toLowerCase() === 'admin') {
         const expensesResponse = await expenseService.getAllExpenses();
         setExpenses(expensesResponse.data || []);
         
@@ -59,7 +59,7 @@ export default function Dashboard() {
           approvedCount: expensesResponse.data?.filter(e => e.status === 'APPROVED').length || 0,
           totalAmount: reportResponse.totalExpenses || 0
         });
-      } else {
+      } else if (user.role?.toLowerCase() === 'employee') {
         const myExpensesResponse = await expenseService.getUserExpenses(user.id);
         setExpenses(myExpensesResponse.data || []);
 
@@ -91,10 +91,10 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-slate-900 mb-2">
-              {user?.role === 'admin' ? 'Admin Dashboard' : 'My Dashboard'}
+              {user?.role?.toLowerCase() === 'admin' ? 'Admin Dashboard' : 'My Dashboard'}
             </h1>
             <p className="text-slate-600">
-              {user?.role === 'admin' 
+              {user?.role?.toLowerCase() === 'admin' 
                 ? 'Overview of all company expenses and approvals' 
                 : 'Track your expenses and pending approvals'}
             </p>

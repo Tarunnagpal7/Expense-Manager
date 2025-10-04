@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User } from "@/entities/User";
-import { Company } from "@/entities/Company";
-import { ApprovalSequence } from "@/entities/ApprovalSequence";
-import { ApprovalRule } from "@/entities/ApprovalRule";
+import { authService } from "@/lib/services/authService";
+import { companyService } from "@/lib/services/companyService";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,18 +26,19 @@ export default function ApprovalSettings() {
   }, []);
 
   const loadData = async () => {
-    const userData = await User.me();
-    setUser(userData);
+    try {
+      const response = await authService.getProfile();
+      const userData = response.user;
+      setUser(userData);
 
-    if (userData.company_id) {
-      const companies = await Company.filter({ id: userData.company_id });
-      if (companies.length > 0) setCompany(companies[0]);
-
-      const seq = await ApprovalSequence.filter({ company_id: userData.company_id }, 'sequence_order');
-      setSequences(seq);
-
-      const rls = await ApprovalRule.filter({ company_id: userData.company_id });
-      setRules(rls);
+      if (userData.company) {
+        setCompany(userData.company);
+        // TODO: Implement approval sequences and rules API calls
+        setSequences([]);
+        setRules([]);
+      }
+    } catch (error) {
+      console.error("Error loading approval settings:", error);
     }
   };
 

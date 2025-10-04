@@ -55,13 +55,19 @@ export default function Layout({ children, currentPageName }) {
       title: "Dashboard",
       url: createPageUrl("Dashboard"),
       icon: LayoutDashboard,
-      roles: ["admin", "user"]
+      roles: ["admin", "employee"]
+    },
+    {
+      title: "Manager Dashboard",
+      url: createPageUrl("ManagerDashboard"),
+      icon: TrendingUp,
+      roles: ["manager"]
     },
     {
       title: "Submit Expense",
       url: createPageUrl("SubmitExpense"),
       icon: Receipt,
-      roles: ["admin", "user"]
+      roles: ["admin", "employee", "manager"]
     },
     {
       title: "Team Management",
@@ -84,7 +90,7 @@ export default function Layout({ children, currentPageName }) {
   ];
 
   const filteredNav = navigationItems.filter(item => 
-    !item.roles || item.roles.includes(user?.role || "admin")
+    !item.roles || item.roles.includes(user?.role?.toLowerCase() || "admin")
   );
 
   return (
@@ -139,7 +145,7 @@ export default function Layout({ children, currentPageName }) {
               </SidebarGroupContent>
             </SidebarGroup>
 
-            {user?.role === "admin" && (
+            {user?.role?.toLowerCase() === "admin" && (
               <SidebarGroup className="mt-6">
                 <SidebarGroupLabel className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2">
                   Quick Stats
@@ -173,7 +179,8 @@ export default function Layout({ children, currentPageName }) {
                     <p className="font-semibold text-slate-900 text-sm truncate">{user?.name}</p>
                     <p className="text-xs text-slate-500 truncate">{user?.email}</p>
                     <span className="inline-block mt-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-xs font-medium rounded-full">
-                      {user?.role === 'ADMIN' ? 'Administrator' : 'Employee'}
+                      {user?.role?.toLowerCase() === 'admin' ? 'Administrator' : 
+                       user?.role?.toLowerCase() === 'manager' ? 'Manager' : 'Employee'}
                     </span>
                   </div>
                 </div>

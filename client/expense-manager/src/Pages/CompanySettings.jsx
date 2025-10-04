@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { User } from "@/entities/User";
-import { Company } from "@/entities/Company";
+import { authService } from "@/lib/services/authService";
+import { companyService } from "@/lib/services/companyService";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,20 +24,22 @@ export default function CompanySettings() {
   }, []);
 
   const loadData = async () => {
-    const userData = await User.me();
-    setUser(userData);
+    try {
+      const response = await authService.getProfile();
+      const userData = response.user;
+      setUser(userData);
 
-    if (userData.company_id) {
-      const companies = await Company.filter({ id: userData.company_id });
-      if (companies.length > 0) {
-        setCompany(companies[0]);
+      if (userData.company) {
+        setCompany(userData.company);
         setFormData({
-          name: companies[0].name,
-          country: companies[0].country,
-          default_currency: companies[0].default_currency,
-          currency_symbol: companies[0].currency_symbol
+          name: userData.company.name,
+          country: userData.company.country,
+          default_currency: userData.company.currency,
+          currency_symbol: userData.company.currency
         });
       }
+    } catch (error) {
+      console.error("Error loading company settings:", error);
     }
   };
 

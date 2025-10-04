@@ -1,11 +1,11 @@
 import express from "express";
 import { companyController } from "../controllers/companyController.js";
-import { authenticateToken } from "../middleware/auth.js";
+import { auth } from "../middleware/auth.js";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
-router.use(authenticateToken);
+router.use(auth);
 
 // GET /api/companies - Get all companies
 router.get("/", companyController.getAllCompanies);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle, 
   XCircle, 
@@ -10,7 +10,10 @@ import {
   FileText,
   TrendingUp,
   Clock,
-  Eye
+  Eye,
+  DollarSign,
+  Calendar,
+  User as UserIcon
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,105 +22,151 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '../lib/contexts/AuthContext';
+import { expenseService } from '../lib/services/expenseService';
+import { approvalService } from '../lib/services/approvalService';
+import { userService } from '../lib/services/userService';
+import { reportService } from '../lib/services/reportService';
+import { toast } from 'react-hot-toast';
+import { format } from 'date-fns';
+import { createPageUrl } from '../utils';
+import { useNavigate } from 'react-router-dom';
 
 const ManagerDashboard = () => {
-  const [approvals, setApprovals] = useState([
-    {
-      id: '1',
-      subject: 'Client Dinner - Tech Conference',
-      owner: 'Sarah Johnson',
-      category: 'Meals',
-      status: 'pending',
-      amount: 507.50,
-      currency: 'USD',
-      convertedAmount: 507.50,
-      date: '2024-01-15',
-      description: 'Business dinner with potential clients during tech conference'
-    },
-    {
-      id: '2',
-      subject: 'Flight to San Francisco',
-      owner: 'Mike Chen',
-      category: 'Travel',
-      status: 'pending',
-      amount: 845.00,
-      currency: 'USD',
-      convertedAmount: 845.00,
-      date: '2024-01-10',
-      description: 'Round-trip flight for quarterly business review'
-    },
-    {
-      id: '3',
-      subject: 'Team Building Activity',
-      owner: 'Emily Davis',
-      category: 'Client Entertainment',
-      status: 'pending',
-      amount: 1200.00,
-      currency: 'USD',
-      convertedAmount: 1200.00,
-      date: '2024-01-08',
-      description: 'Team building event with department members'
-    }
-  ]);
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  
+  // State management
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [stats, setStats] = useState({
+    pendingCount: 0,
+    teamMembersCount: 0,
+    approvedThisMonth: 0,
+    totalExpenses: 0
+  });
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedApproval, setSelectedApproval] = useState(null);
+  const [isApprovalDialogOpen, setIsApprovalDialogOpen] = useState(false);
+  const [approvalComment, setApprovalComment] = useState('');
+  const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
-  const stats = [
-    {
-      title: 'Pending Approvals',
-      value: '3',
-      icon: Clock,
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-50'
-    },
-    {
-      title: 'Team Members',
-      value: '12',
-      icon: Users,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50'
-    },
-    {
-      title: 'Approved This Month',
-      value: '$2,845',
-      icon: TrendingUp,
-      color: 'text-emerald-500',
-      bgColor: 'bg-emerald-50'
-    },
-    {
-      title: 'Total Expenses',
-      value: '24',
-      icon: FileText,
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-50'
-    }
-  ];
+  useEffect(() => {
+    loadData();
+  }, [user]);
 
-  const handleApprove = (approvalId) => {
-    setApprovals(prev => prev.map(approval => 
-      approval.id === approvalId 
-        ? { ...approval, status: 'approved' }
-        : approval
-    ));
+  const loadData = async () => {
+    if (!user) return;
+    
+    setIsLoading(true);
+    try {
+      // Load pending approvals for this manager
+      const approvalsResponse = await approvalService.getPendingApprovals();
+      setPendingApprovals(approvalsResponse.data || []);
+
+      // Load team members (direct reports)
+      const usersResponse = await userService.getAllUsers();
+      const directReports = usersResponse.users?.filter(u => 
+        u.manager_id === user.id || u.manager_email === user.email
+      ) || [];
+      setTeamMembers(directReports);
+
+      // Load manager-specific stats
+      const reportResponse = await reportService.getOverviewReport();
+      
+      // Calculate stats
+      const pendingCount = approvalsResponse.data?.length || 0;
+      const teamMembersCount = directReports.length;
+      const approvedThisMonth = reportResponse.approvedThisMonth || 0;
+      const totalExpenses = reportResponse.totalExpenses || 0;
+
+      setStats({
+        pendingCount,
+        teamMembersCount,
+        approvedThisMonth,
+        totalExpenses
+      });
+
+      // Load recent activity (mock for now - would need audit log service)
+      setRecentActivity([
+        {
+          id: '1',
+          type: 'approved',
+          description: 'Client Meeting Expense',
+          amount: 250.00,
+          user: 'John Doe',
+          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
+        },
+        {
+          id: '2',
+          type: 'rejected',
+          description: 'Personal Item',
+          amount: 89.99,
+          user: 'Jane Smith',
+          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
+        },
+        {
+          id: '3',
+          type: 'approved',
+          description: 'Software Subscription',
+          amount: 299.00,
+          user: 'Mike Johnson',
+          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
+        }
+      ]);
+
+    } catch (error) {
+      console.error('Error loading manager dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleReject = (approvalId) => {
-    setApprovals(prev => prev.map(approval => 
-      approval.id === approvalId 
-        ? { ...approval, status: 'rejected' }
-        : approval
-    ));
+  const handleApprove = async (approvalId, isApproved) => {
+    setIsProcessingApproval(true);
+    try {
+      await approvalService.decideApproval(approvalId, isApproved ? 'APPROVED' : 'REJECTED', approvalComment);
+      
+      toast.success(`Expense ${isApproved ? 'approved' : 'rejected'} successfully`);
+      
+      // Refresh data
+      await loadData();
+      
+      // Close dialog
+      setIsApprovalDialogOpen(false);
+      setSelectedApproval(null);
+      setApprovalComment('');
+      
+    } catch (error) {
+      console.error('Error processing approval:', error);
+      toast.error(`Failed to ${isApproved ? 'approve' : 'reject'} expense`);
+    } finally {
+      setIsProcessingApproval(false);
+    }
+  };
+
+  const openApprovalDialog = (approval) => {
+    setSelectedApproval(approval);
+    setIsApprovalDialogOpen(true);
   };
 
   const getStatusBadge = (status) => {
     const variants = {
-      pending: { color: 'bg-orange-100 text-orange-800 border-orange-200' },
-      approved: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
-      rejected: { color: 'bg-red-100 text-red-800 border-red-200' }
+      PENDING_APPROVAL: { color: 'bg-orange-100 text-orange-800 border-orange-200' },
+      APPROVED: { color: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+      REJECTED: { color: 'bg-red-100 text-red-800 border-red-200' },
+      SUBMITTED: { color: 'bg-blue-100 text-blue-800 border-blue-200' }
     };
     
     return (
-      <Badge variant="outline" className={variants[status].color}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <Badge variant="outline" className={variants[status]?.color || 'bg-gray-100 text-gray-800 border-gray-200'}>
+        {status?.replace('_', ' ').toLowerCase() || 'Unknown'}
       </Badge>
     );
   };
@@ -128,10 +177,26 @@ const ManagerDashboard = () => {
       Meals: 'text-orange-600 bg-orange-50',
       Accommodation: 'text-purple-600 bg-purple-50',
       'Client Entertainment': 'text-pink-600 bg-pink-50',
-      'Office Supplies': 'text-gray-600 bg-gray-50'
+      'Office Supplies': 'text-gray-600 bg-gray-50',
+      'Software': 'text-green-600 bg-green-50',
+      'Transportation': 'text-indigo-600 bg-indigo-50'
     };
     return colors[category] || 'text-gray-600 bg-gray-50';
   };
+
+  const filteredApprovals = pendingApprovals.filter(approval =>
+    approval.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    approval.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    approval.category?.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-6 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-6">
@@ -150,28 +215,85 @@ const ManagerDashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-slate-600">{stat.title}</p>
-                    <p className="text-2xl font-bold text-slate-900 mt-1">{stat.value}</p>
-                  </div>
-                  <div className={`p-3 rounded-full ${stat.bgColor}`}>
-                    <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                  </div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0 }}
+        >
+          <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Pending Approvals</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.pendingCount}</p>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+                <div className="p-3 rounded-full bg-orange-50">
+                  <Clock className="w-6 h-6 text-orange-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Team Members</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.teamMembersCount}</p>
+                </div>
+                <div className="p-3 rounded-full bg-blue-50">
+                  <Users className="w-6 h-6 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Approved This Month</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">${stats.approvedThisMonth.toFixed(2)}</p>
+                </div>
+                <div className="p-3 rounded-full bg-emerald-50">
+                  <TrendingUp className="w-6 h-6 text-emerald-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
+          <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-600">Total Expenses</p>
+                  <p className="text-2xl font-bold text-slate-900 mt-1">{stats.totalExpenses}</p>
+                </div>
+                <div className="p-3 rounded-full bg-purple-50">
+                  <FileText className="w-6 h-6 text-purple-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -190,6 +312,8 @@ const ManagerDashboard = () => {
                     <Input 
                       placeholder="Search approvals..." 
                       className="pl-9 w-64 border-slate-200"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
                     />
                   </div>
                   <Button variant="outline" size="sm" className="border-slate-200">
@@ -212,7 +336,7 @@ const ManagerDashboard = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {approvals.map((approval) => (
+                  {filteredApprovals.map((approval) => (
                     <motion.tr 
                       key={approval.id}
                       initial={{ opacity: 0 }}
@@ -221,42 +345,47 @@ const ManagerDashboard = () => {
                     >
                       <TableCell className="font-medium text-slate-900">
                         <div>
-                          <p className="font-semibold">{approval.subject}</p>
-                          <p className="text-sm text-slate-500 mt-1">{approval.description}</p>
+                          <p className="font-semibold">{approval.subject || approval.title || 'Untitled Expense'}</p>
+                          <p className="text-sm text-slate-500 mt-1">{approval.description || approval.note || 'No description'}</p>
                         </div>
                       </TableCell>
-                      <TableCell className="text-slate-700">{approval.owner}</TableCell>
+                      <TableCell className="text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <UserIcon className="w-4 h-4 text-slate-400" />
+                          {approval.user_name || approval.user?.name || approval.owner || 'Unknown User'}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={getCategoryColor(approval.category)}>
-                          {approval.category}
+                          {approval.category || 'Uncategorized'}
                         </Badge>
                       </TableCell>
                       <TableCell>{getStatusBadge(approval.status)}</TableCell>
                       <TableCell className="text-right text-slate-900 font-semibold">
-                        ${approval.convertedAmount.toFixed(2)}
+                        ${(approval.amountCompany || approval.amount || 0).toFixed(2)}
                         <p className="text-sm text-slate-500 font-normal">
-                          {approval.amount} {approval.currency} = {approval.convertedAmount} USD
+                          {approval.currency || 'USD'}
                         </p>
                       </TableCell>
                       <TableCell>
-                        {approval.status === 'pending' ? (
+                        {(approval.status === 'PENDING_APPROVAL' || approval.status === 'SUBMITTED') ? (
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
-                              onClick={() => handleApprove(approval.id)}
+                              onClick={() => openApprovalDialog(approval)}
                               className="bg-emerald-600 hover:bg-emerald-700 text-white"
                             >
                               <CheckCircle className="w-4 h-4 mr-1" />
-                              Approve
+                              Review
                             </Button>
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => handleReject(approval.id)}
-                              className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                              onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.expense_id || approval.id }))}
+                              className="border-blue-200 text-blue-700 hover:bg-blue-50"
                             >
-                              <XCircle className="w-4 h-4 mr-1" />
-                              Reject
+                              <Eye className="w-4 h-4 mr-1" />
+                              View
                             </Button>
                           </div>
                         ) : (
@@ -266,12 +395,12 @@ const ManagerDashboard = () => {
                               variant="outline"
                               disabled
                               className={
-                                approval.status === 'approved' 
+                                approval.status === 'APPROVED' 
                                   ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
                                   : 'border-red-200 text-red-700 bg-red-50'
                               }
                             >
-                              {approval.status === 'approved' ? 'Approved' : 'Rejected'}
+                              {approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -280,7 +409,7 @@ const ManagerDashboard = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.expense_id || approval.id }))}>
                                   <Eye className="w-4 h-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
@@ -298,7 +427,7 @@ const ManagerDashboard = () => {
                 </TableBody>
               </Table>
 
-              {approvals.filter(a => a.status === 'pending').length === 0 && (
+              {filteredApprovals.length === 0 && (
                 <div className="text-center py-12">
                   <CheckCircle className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-slate-900 mb-2">All Caught Up!</h3>
@@ -317,18 +446,71 @@ const ManagerDashboard = () => {
               <CardTitle className="text-lg text-slate-900">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button className="w-full justify-start bg-emerald-600 hover:bg-emerald-700 text-white">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                View Team Reports
-              </Button>
-              <Button variant="outline" className="w-full justify-start border-slate-200">
-                <Users className="w-4 h-4 mr-2" />
-                Manage Team
-              </Button>
-              <Button variant="outline" className="w-full justify-start border-slate-200">
+              <Button 
+                className="w-full justify-start bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => navigate(createPageUrl('SubmitExpense'))}
+              >
                 <FileText className="w-4 h-4 mr-2" />
-                Export Approvals
+                Submit Expense
               </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start border-slate-200"
+                onClick={() => navigate(createPageUrl('Dashboard'))}
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                View Reports
+              </Button>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start border-slate-200"
+                onClick={() => {
+                  // Export functionality would go here
+                  toast.info('Export feature coming soon!');
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Data
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Team Members */}
+          <Card className="border-slate-200 bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-lg text-slate-900">Team Members</CardTitle>
+              <CardDescription>{teamMembers.length} direct reports</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {teamMembers.slice(0, 5).map((member) => (
+                  <div key={member.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">
+                        {(member.name || member.full_name || 'U').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {member.name || member.full_name || 'Unknown'}
+                      </p>
+                      <p className="text-xs text-slate-500 truncate">
+                        {member.department || 'No department'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+                {teamMembers.length > 5 && (
+                  <p className="text-xs text-slate-500 text-center pt-2">
+                    +{teamMembers.length - 5} more team members
+                  </p>
+                )}
+                {teamMembers.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-4">
+                    No team members assigned
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -339,35 +521,116 @@ const ManagerDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Approved expense</p>
-                    <p className="text-sm text-slate-600">Client Meeting - $250.00</p>
-                    <p className="text-xs text-slate-500">2 hours ago</p>
+                {recentActivity.map((activity) => (
+                  <div key={activity.id} className="flex items-start gap-3">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      activity.type === 'approved' ? 'bg-emerald-500' : 'bg-red-500'
+                    }`}></div>
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">
+                        {activity.type === 'approved' ? 'Approved expense' : 'Rejected expense'}
+                      </p>
+                      <p className="text-sm text-slate-600">
+                        {activity.description} - ${activity.amount.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {format(activity.timestamp, 'MMM d, h:mm a')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Rejected expense</p>
-                    <p className="text-sm text-slate-600">Personal Item - $89.99</p>
-                    <p className="text-xs text-slate-500">1 day ago</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
-                  <div>
-                    <p className="text-sm font-medium text-slate-900">Approved expense</p>
-                    <p className="text-sm text-slate-600">Software Subscription - $299.00</p>
-                    <p className="text-xs text-slate-500">2 days ago</p>
-                  </div>
-                </div>
+                ))}
+                {recentActivity.length === 0 && (
+                  <p className="text-sm text-slate-500 text-center py-4">
+                    No recent activity
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Approval Dialog */}
+      <Dialog open={isApprovalDialogOpen} onOpenChange={setIsApprovalDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Review Expense</DialogTitle>
+            <DialogDescription>
+              Review the expense details and make your decision
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedApproval && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Subject</Label>
+                  <p className="text-sm text-slate-900">{selectedApproval.subject || selectedApproval.title || 'Untitled'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Amount</Label>
+                  <p className="text-sm text-slate-900">${(selectedApproval.amountCompany || selectedApproval.amount || 0).toFixed(2)}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Category</Label>
+                  <p className="text-sm text-slate-900">{selectedApproval.category || 'Uncategorized'}</p>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium text-slate-700">Submitted By</Label>
+                  <p className="text-sm text-slate-900">{selectedApproval.user_name || selectedApproval.user?.name || 'Unknown'}</p>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-sm font-medium text-slate-700">Description</Label>
+                <p className="text-sm text-slate-900 mt-1">{selectedApproval.description || selectedApproval.note || 'No description provided'}</p>
+              </div>
+
+              <div>
+                <Label htmlFor="comment" className="text-sm font-medium text-slate-700">Comment (Optional)</Label>
+                <Textarea
+                  id="comment"
+                  placeholder="Add a comment for your decision..."
+                  value={approvalComment}
+                  onChange={(e) => setApprovalComment(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsApprovalDialogOpen(false);
+                setSelectedApproval(null);
+                setApprovalComment('');
+              }}
+              disabled={isProcessingApproval}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleApprove(selectedApproval?.id, false)}
+              disabled={isProcessingApproval}
+              className="border-red-200 text-red-700 hover:bg-red-50"
+            >
+              <XCircle className="w-4 h-4 mr-2" />
+              {isProcessingApproval ? 'Rejecting...' : 'Reject'}
+            </Button>
+            <Button
+              onClick={() => handleApprove(selectedApproval?.id, true)}
+              disabled={isProcessingApproval}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {isProcessingApproval ? 'Approving...' : 'Approve'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

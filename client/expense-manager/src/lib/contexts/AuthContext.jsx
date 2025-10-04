@@ -20,14 +20,31 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem('token');
-      if (token) {
+      const storedUser = localStorage.getItem('user');
+      
+      if (token && storedUser) {
         try {
-          const userData = await authService.getProfile();
-          setUser(userData.user);
+          // Try to get fresh user data from server
+          const response = await authService.getProfile();
+          setUser(response.user);
+          localStorage.setItem('user', JSON.stringify(response.user));
           setIsAuthenticated(true);
         } catch (error) {
           console.error('Auth initialization failed:', error);
-          localStorage.removeItem('token');
+          // Fallback to stored user data if server is unavailable
+          if (storedUser) {
+            try {
+              const userData = JSON.parse(storedUser);
+              setUser(userData);
+              setIsAuthenticated(true);
+            } catch (parseError) {
+              console.error('Failed to parse stored user data:', parseError);
+              localStorage.removeItem('token');
+              localStorage.removeItem('user');
+            }
+          } else {
+            localStorage.removeItem('token');
+          }
         }
       }
       setLoading(false);
@@ -40,6 +57,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.login(credentials);
       localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
       setUser(response.user);
       setIsAuthenticated(true);
       return response;
@@ -52,6 +70,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await authService.register(userData);
       localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
       setUser(response.user);
       setIsAuthenticated(true);
       return response;
@@ -67,6 +86,7 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       localStorage.removeItem('token');
+      localStorage.removeItem('user');
       setUser(null);
       setIsAuthenticated(false);
     }

@@ -14,7 +14,7 @@ const Login = () => {
   const location = useLocation();
   const { login } = useAuth();
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname;
 
   const handleChange = (e) => {
     setFormData({
@@ -28,9 +28,21 @@ const Login = () => {
     setLoading(true);
 
     try {
-      await login(formData);
+      const response = await login(formData);
       toast.success('Login successful!');
-      navigate(from, { replace: true });
+      
+      // Redirect based on user role or intended destination
+      if (from) {
+        navigate(from, { replace: true });
+      } else {
+        // Role-based default redirect
+        const userRole = response.user?.role?.toLowerCase();
+        if (userRole === 'manager') {
+          navigate('/manager-dashboard', { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      }
     } catch (error) {
       console.error('Login failed:', error);
       toast.error(error.message || 'Login failed. Please try again.');

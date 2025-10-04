@@ -8,23 +8,38 @@ import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import Dashboard from './Pages/Dashboard';
 import SubmitExpense from './Pages/SubmitExpense';
+import ExpenseDetails from './Pages/ExpenseDetails';
 import ManageUsers from './Pages/ManageUsers';
 import ApprovalSettings from './Pages/ApprovalSettings';
 import CompanySettings from './Pages/CompanySettings';
 import ManagerDashboard from './Pages/ManagerDashboard';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-  
+// Component to redirect users to their appropriate dashboard based on role
+function RoleBasedRedirect() {
+  const { user, isAuthenticated, loading } = useAuth();
+
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
   }
-  
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const userRole = user.role?.toLowerCase();
+  if (userRole === 'manager') {
+    return <Navigate to="/manager-dashboard" replace />;
+  } else {
+    return <Navigate to="/dashboard" replace />;
+  }
 }
 
 function App() {
-
   return (
     <AuthProvider>
       <Router>
@@ -35,32 +50,42 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           
           {/* Protected routes with Layout */}
-          <Route path="/" element={
-            <ProtectedRoute>
+          <Route path="/" element={<RoleBasedRedirect />} />
+          
+          <Route path="/dashboard" element={
+            <ProtectedRoute allowedRoles={["admin", "employee"]}>
               <Layout>
                 <Dashboard />
               </Layout>
             </ProtectedRoute>
           } />
           
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
+          <Route path="/manager-dashboard" element={
+            <ProtectedRoute allowedRoles={["manager"]}>
               <Layout>
-                <Dashboard />
+                <ManagerDashboard />
               </Layout>
             </ProtectedRoute>
           } />
           
           <Route path="/submit-expense" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["admin", "employee", "manager"]}>
               <Layout>
                 <SubmitExpense />
               </Layout>
             </ProtectedRoute>
           } />
           
+          <Route path="/expense/:id" element={
+            <ProtectedRoute allowedRoles={["admin", "employee", "manager"]}>
+              <Layout>
+                <ExpenseDetails />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
           <Route path="/manage-users" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["admin"]}>
               <Layout>
                 <ManageUsers />
               </Layout>
@@ -68,23 +93,15 @@ function App() {
           } />
           
           <Route path="/approval-settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["admin"]}>
               <Layout>
                 <ApprovalSettings />
               </Layout>
             </ProtectedRoute>
           } />
-
-          <Route path="/manager-dashboard" element={
-            <ProtectedRoute>
-              <Layout>
-                <ManagerDashboard />
-              </Layout>
-            </ProtectedRoute>
-          } />
           
           <Route path="/company-settings" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={["admin"]}>
               <Layout>
                 <CompanySettings />
               </Layout>
@@ -92,7 +109,7 @@ function App() {
           } />
           
           {/* Default redirect */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<RoleBasedRedirect />} />
         </Routes>
       </Router>
     </AuthProvider>
