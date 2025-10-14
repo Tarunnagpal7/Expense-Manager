@@ -9,7 +9,7 @@ const router = express.Router();
 router.use(auth);
 
 // Only admin can manage users
-router.get("/", roleCheck(["ADMIN"]), UserController.getUsers);
+router.get("/", roleCheck(["ADMIN", "MANAGER"]), UserController.getUsers);
 router.post("/", roleCheck(["ADMIN"]), UserController.createUser);
 router.put("/:id", roleCheck(["ADMIN"]), UserController.updateUser);
 router.delete("/:id", roleCheck(["ADMIN"]), UserController.deleteUser);

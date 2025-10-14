@@ -1,190 +1,286 @@
 # 💼 Expense Management System (MERN + Prisma + PostgreSQL)
 
-An advanced yet easy-to-understand **Expense Management System** built using **MERN Stack** with **Prisma ORM** and **PostgreSQL** as the database.
-
-This project allows employees to submit expenses, managers to approve or reject them, and admins to manage the entire process — from submission to reimbursement — with full audit logging.
+An advanced yet easy-to-understand Expense Management System built using a MERN-style stack with Prisma ORM and PostgreSQL. Employees submit expenses, managers approve/reject, and admins oversee end‑to‑end processing with full audit logging and a configurable multi‑step approval flow.
 
 ---
 
 ## 🚀 Tech Stack
 
-| Layer | Technology |
-|-------|-------------|
-| **Frontend** | React.js / Next.js, Axios, Tailwind CSS |
-| **Backend** | Node.js, Express.js |
-| **Database ORM** | Prisma |
-| **Database** | PostgreSQL |
-| **Authentication** | JWT / Clerk / Auth0 |
-| **Storage** | Cloudinary / AWS S3 |
-| **Deployment** | Vercel (Frontend) + Render / Railway (Backend) |
+| Layer        | Technology                                                |
+| ------------ | --------------------------------------------------------- |
+| **Frontend** | React (Vite), React Router, Axios, Tailwind CSS, Radix UI |
+| **Backend**  | Node.js, Express.js                                       |
+| **ORM**      | Prisma                                                    |
+| **Database** | PostgreSQL                                                |
+| **Auth**     | JWT (server‑side)                                         |
+| **Storage**  | Local/Cloud (pluggable; e.g. Cloudinary/S3)               |
+| **OCR**      | Custom OCR service wrapper (extensible)                   |
 
 ---
 
-## 🧩 Features
+## 🧩 Key Features
 
-✅ Employee expense creation and submission  
-✅ Receipt upload and optional OCR extraction  
-✅ Manager approval/rejection system  
-✅ Role-based authentication (Admin / Manager / Employee)  
-✅ Audit logs for every action  
-✅ Admin dashboard to view all company expenses and approvals  
-✅ Multi-step approval workflow (customizable)
-
----
-
-
-## Database Design :
-![PHOTO-2025-10-04-08-42-36](https://github.com/user-attachments/assets/02966aa7-62f6-4f28-a76a-5a7a5974ef3e)
-
-## 🏗️ Database Schema (Simplified Overview)
-
-### Main Entities
-- **Company**
-- **User**
-- **Expense**
-- **Receipt**
-- **ApprovalFlow**
-- **ApprovalStep**
-- **ApprovalInstance**
-- **ApprovalInstanceStep**
-- **ApprovalStepDecision**
-- **AuditLog**
-
-### Core Relationships
-- A **Company** has many **Users** and **Expenses**
-- A **User** submits many **Expenses**
-- An **Expense** can have many **Receipts** and **Approvals**
-- **AuditLogs** record all important actions
-- **ApprovalFlows** define how expenses move through approval stages
+- **Expense lifecycle**: draft → submit → multi‑step approval → reimbursement
+- **Role‑based access**: Admin, Manager, Employee
+- **Configurable approvals**: company‑specific approval flows and rules
+- **Receipts & OCR**: upload receipts and optionally extract data
+- **Dashboards**: employee, manager, and admin views
+- **Audit logs**: every action tracked
 
 ---
 
-## ⚙️ Installation & Setup
+## 📦 Monorepo Layout
 
-### 1️⃣ Clone the Repository
+```
+.
+├─ client/expense-manager/           # React app (Vite)
+└─ server/                           # Express API + Prisma
+   ├─ prisma/                        # Prisma schema and migrations
+   └─ src/                           # Controllers, routes, services
+```
+
+Notable server modules:
+
+- `src/services/approvalEngine.js`: approval routing and step advancement
+- `src/middleware/auth.js` + `src/middleware/roleCheck.js`: JWT + roles
+- `src/controllers/*`: request handling per domain
+- `src/routes/*`: route registration per resource
+
+---
+
+## ⚙️ Prerequisites
+
+- Node.js 18+
+- PostgreSQL 14+
+
+---
+
+## 🔧 Setup & Installation
+
+1. Clone
+
 ```bash
 git clone https://github.com/<your-username>/expense-management-system.git
 cd expense-management-system
 ```
 
-### 2️⃣ Install Dependencies
+2. Install root tools (for Tailwind helper)
+
 ```bash
 npm install
 ```
 
-### 3️⃣ Configure Environment Variables
-```bash
-Create a .env file in the root:
+3. Install server and client deps
 
+```bash
+cd server && npm install && cd ..
+cd client/expense-manager && npm install && cd ../..
+```
+
+4. Environment variables
+
+Create `server/.env` with:
+
+```bash
 DATABASE_URL="postgresql://user:password@localhost:5432/expense_db"
 JWT_SECRET="your-secret-key"
-CLOUDINARY_URL="your-cloudinary-url"
+# Optional mail/storage
+SMTP_HOST="localhost"
+SMTP_PORT="2525"
+SMTP_USER=""
+SMTP_PASS=""
+CLOUDINARY_URL=""
 ```
 
-### 4️⃣ Run Prisma Migrations
+5. Prisma init (from `server/`)
+
 ```bash
-npx prisma migrate dev --name init
-npx prisma generate
+npm run prisma:migrate
+npm run prisma:generate
+# Optional local seed (if implemented)
+node prisma/seed.js
 ```
 
+6. Run apps
 
-## 🧠 API Endpoints
-### 🔐 Authentication
-| Method | Endpoint             | Description             |
-| ------ | -------------------- | ----------------------- |
-| ⁠ POST ⁠ | ⁠ /api/auth/register ⁠ | Register new user       |
-| ⁠ POST ⁠ | ⁠ /api/auth/login ⁠    | Login and get JWT token |
-| ⁠ GET ⁠  | ⁠ /api/auth/profile ⁠  | Get logged-in user info |
+```bash
+# Terminal A
+cd server && npm run dev
 
+# Terminal B
+cd client/expense-manager && npm run dev
+```
 
-### 🏢 Company APIs
-| Method | Endpoint             | Description          |
-| ------ | -------------------- | -------------------- |
-| ⁠ POST ⁠ | ⁠ /api/companies ⁠     | Create a new company |
-| ⁠ GET ⁠  | ⁠ /api/companies ⁠     | Get all companies    |
-| ⁠ GET ⁠  | ⁠ /api/companies/:id ⁠ | Get company by ID    |
+Frontend dev server (default): `http://localhost:5173`
 
-
-### 👥 User APIs
-| Method   | Endpoint         | Description                |
-| -------- | ---------------- | -------------------------- |
-| ⁠ GET ⁠    | ⁠ /api/users ⁠     | Get all users (Admin only) |
-| ⁠ GET ⁠    | ⁠ /api/users/:id ⁠ | Get user details           |
-| ⁠ PATCH ⁠  | ⁠ /api/users/:id ⁠ | Update user info           |
-| ⁠ DELETE ⁠ | ⁠ /api/users/:id ⁠ | Remove user (Admin only)   |
-
-## 💰 Expense APIs
-| Method   | Endpoint                   | Description                         |
-| -------- | -------------------------- | ----------------------------------- |
-| ⁠ POST ⁠   | ⁠ /api/expenses ⁠            | Create a new expense                |
-| ⁠ GET ⁠    | ⁠ /api/expenses ⁠            | Get all expenses for logged-in user |
-| ⁠ GET ⁠    | ⁠ /api/expenses/:id ⁠        | Get expense details                 |
-| ⁠ PATCH ⁠  | ⁠ /api/expenses/:id ⁠        | Update expense (before submit)      |
-| ⁠ POST ⁠   | ⁠ /api/expenses/:id/submit ⁠ | Submit expense for approval         |
-| ⁠ DELETE ⁠ | ⁠ /api/expenses/:id ⁠        | Delete expense (if draft)           |
-
-## 🧾 Receipt APIs
-| Method   | Endpoint                   | Description                     |
-| -------- | -------------------------- | ------------------------------- |
-| ⁠ POST ⁠   | ⁠ /api/receipts/:expenseId ⁠ | Upload receipt for an expense   |
-| ⁠ GET ⁠    | ⁠ /api/receipts/:expenseId ⁠ | Get all receipts for an expense |
-| ⁠ DELETE ⁠ | ⁠ /api/receipts/:id ⁠        | Delete a specific receipt       |
-
-### ✅ Approval APIs
-| Method | Endpoint | Description |
-|--------|-----------|-------------|
-| ⁠ GET ⁠  | ⁠ /api/approvals ⁠ | Get pending approvals for manager |
-| ⁠ POST ⁠ | ⁠ /api/approvals/:expenseId ⁠ | Approve/Reject an expense |
-| ⁠ GET ⁠  | ⁠ /api/approval-flows ⁠ | Get all approval flows |
-| ⁠ POST ⁠ | ⁠ /api/approval-flows ⁠ | Create a new approval flow |
-| ⁠ GET ⁠  | ⁠ /api/approval-flows/:id ⁠ | Get flow details |
+Backend API (default): `http://localhost:3000`
 
 ---
 
+## 📜 NPM Scripts
 
-### 📜 Audit Logs
-| Method | Endpoint              | Description                     |
-| ------ | --------------------- | ------------------------------- |
-| ⁠ GET ⁠  | ⁠ /api/audit-logs ⁠     | Get all audit logs (Admin only) |
-| ⁠ GET ⁠  | ⁠ /api/audit-logs/:id ⁠ | Get specific log entry          |
+Server (`server/package.json`):
 
+- `dev`: start Express with nodemon
+- `start`: start Express with node
+- `prisma:migrate`: `prisma migrate dev`
+- `prisma:generate`: regenerate Prisma client
+- `prisma:studio`: open Prisma Studio
 
-### 🧮 Roles & Permissions
-| Role         | Access                                          |
-| ------------ | ----------------------------------------------- |
-| *ADMIN*    | Manage company, users, view all expenses & logs |
-| *MANAGER*  | Approve/reject expenses, view team expenses     |
-| *EMPLOYEE* | Submit and view own expenses                    |
+Client (`client/expense-manager/package.json`):
 
+- `dev`: Vite dev server
+- `build`: Vite production build
+- `preview`: preview built app
+- `lint`: run ESLint
 
-### 🖥️ Frontend Pages
-| Path                | Description                       |
-| ------------------- | --------------------------------- |
-| ⁠ /login ⁠            | User login page                   |
-| ⁠ /register ⁠         | Register new user                 |
-| ⁠ /dashboard ⁠        | Expense overview                  |
-| ⁠ /expenses/new ⁠     | Create new expense                |
-| ⁠ /expenses/:id ⁠     | Expense detail and receipt upload |
-| ⁠ /approvals ⁠        | Manager approval list             |
-| ⁠ /admin/dashboard ⁠  | Admin dashboard                   |
-| ⁠ /admin/audit-logs ⁠ | Audit log viewer                  |
+---
 
-## 🧰 Project Modules
-### 1️⃣ Backend Module 1 – User & Company Management
+## 🔐 Authentication & Roles
 
-Handles authentication, user management, and company setup.
+- **JWT**: issued on login; required for protected routes.
+- **Roles**: `ADMIN`, `MANAGER`, `EMPLOYEE` enforced via `auth` + `roleCheck` middleware.
+- **Protected UI**: guarded using a `ProtectedRoute` component client‑side.
 
-### 2️⃣ Backend Module 2 – Expense & Approval Workflow
+---
 
-Handles expense submission, approval flow logic, and audit logs.
+## 🧠 Approval Workflow (High‑Level)
 
-### 3️⃣ Frontend Module 1 – Employee Portal
+1. Employee creates an expense and uploads receipts.
+2. On submit, an approval instance is created from the company’s active flow.
+3. Managers at each step approve/reject; engine advances or stops accordingly.
+4. Final approval marks expense approved for reimbursement; actions audited.
 
-Allows employees to create, submit, and track expenses.
+See `server/src/services/approvalEngine.js` and `server/src/services/approvalService.js` for orchestration details.
 
-### 4️⃣ Frontend Module 2 – Manager/Admin Dashboard
+---
 
-Manages approvals, analytics, and system logs.
+## 🗄️ Data Model (Conceptual)
 
+- Company, User
+- Expense, Receipt
+- ApprovalFlow, ApprovalStep
+- ApprovalInstance, ApprovalInstanceStep, ApprovalStepDecision
+- AuditLog
 
+Relationships (simplified):
 
+- Company has many Users and Expenses
+- User has many Expenses
+- Expense has many Receipts and ApprovalInstances
+- ApprovalFlow defines ordered steps; instances track runtime progress
+
+---
+
+## 🌐 API Overview
+
+Base URL: `http://localhost:3000/api`
+
+Auth
+
+- POST `/auth/register`, POST `/auth/login`, GET `/auth/profile`
+
+Company
+
+- POST `/companies`, GET `/companies`, GET `/companies/:id`
+
+Users
+
+- GET `/users`, GET `/users/:id`, PATCH `/users/:id`, DELETE `/users/:id`
+
+Expenses
+
+- POST `/expenses`, GET `/expenses`, GET `/expenses/:id`
+- PATCH `/expenses/:id`, POST `/expenses/:id/submit`, DELETE `/expenses/:id`
+
+Receipts
+
+- POST `/receipts/:expenseId`, GET `/receipts/:expenseId`, DELETE `/receipts/:id`
+
+Approvals
+
+- GET `/approvals`
+- POST `/approvals/:expenseId` (approve/reject payload)
+- GET `/approval-flows`, POST `/approval-flows`, GET `/approval-flows/:id`
+
+Audit Logs
+
+- GET `/audit-logs`, GET `/audit-logs/:id`
+
+Refer to `server/src/routes/*` and controllers in `server/src/controllers/*` for exact shapes and middleware.
+
+---
+
+## 🖥️ Frontend
+
+Key pages (examples):
+
+- `/login`, `/register`
+- `/dashboard` (overview)
+- `/expenses/new`, `/expenses/:id`
+- `/approvals` (manager)
+- `/admin/dashboard`, `/admin/audit-logs`
+
+Notable components: UI kits under `src/components/ui/*`, layout in `src/components/Layout.jsx`, auth in `src/lib/contexts/AuthContext.jsx`.
+
+---
+
+## 🧪 Testing (roadmap)
+
+- Add integration tests for controllers (Jest + Supertest).
+- Add component tests for React (Vitest + React Testing Library).
+
+---
+
+## 🚀 Deployment
+
+Backend
+
+- Set `DATABASE_URL`, `JWT_SECRET`, and SMTP/storage values in server env.
+- Run migrations and `npm start`.
+
+Frontend
+
+- `npm run build` in `client/expense-manager` and deploy the `dist/` folder.
+
+Database
+
+- Use managed PostgreSQL (e.g., Render, Railway, Supabase). Apply Prisma migrations.
+
+---
+
+## 🛠️ Troubleshooting
+
+- Prisma errors: verify `server/.env` `DATABASE_URL` and that Postgres is reachable.
+- 401/403 responses: confirm Authorization header (`Bearer <token>`) and role permissions.
+- CORS: check `server/src/app.js` CORS config and client origin.
+- Build issues: align Node and dependency versions; clear node_modules and reinstall.
+
+---
+
+## 🤝 Contributing
+
+1. Fork and create a feature branch
+2. Follow code style and lint rules
+3. Open a PR with a clear description and testing notes
+
+---
+
+## 📄 License
+
+MIT (or your preferred license)
+
+---
+
+## 📚 Appendix: Quick Commands
+
+```bash
+# Server (from server/)
+npm run dev
+npm run prisma:migrate
+npm run prisma:studio
+
+# Client (from client/expense-manager/)
+npm run dev
+npm run build && npm run preview
+```

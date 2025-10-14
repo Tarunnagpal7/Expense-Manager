@@ -61,9 +61,27 @@ async function evaluate(instanceStepId) {
 
     // Find next step in the flow
     const nextStepOrder = step.stepOrder + 1;
-    const nextStep = instance.stepsState.find(
+    let nextStep = instance.stepsState.find(
       (s) => s.stepOrder === nextStepOrder
     );
+
+    if (!nextStep) {
+      // Attempt to create the next step state dynamically from the flow definition
+      const nextFlowStep = await prisma.approvalStep.findFirst({
+        where: { flowId: instance.flowId, stepOrder: nextStepOrder },
+      });
+
+      if (nextFlowStep) {
+        nextStep = await prisma.approvalInstanceStep.create({
+          data: {
+            instanceId: instance.id,
+            stepId: nextFlowStep.id,
+            stepOrder: nextFlowStep.stepOrder,
+            status: "PENDING",
+          },
+        });
+      }
+    }
 
     if (nextStep) {
       // Update instance current step order

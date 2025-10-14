@@ -12,6 +12,16 @@ export const approvalService = {
     }
   },
 
+  // Get company-wide pending approvals count (admin-only)
+  async getCompanyPendingCount() {
+    try {
+      const response = await apiReq.get("/approval/pending/company/count");
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || error;
+    }
+  },
+
   // Make approval decision
   async decideApproval(instanceStepId, decision, comment) {
     try {

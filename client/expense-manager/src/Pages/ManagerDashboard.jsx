@@ -56,6 +56,8 @@ const ManagerDashboard = () => {
   const [approvalComment, setApprovalComment] = useState('');
   const [isProcessingApproval, setIsProcessingApproval] = useState(false);
 
+  //console.log("Auth Context User is: ", user);
+
   useEffect(() => {
     loadData();
   }, [user]);
@@ -67,21 +69,24 @@ const ManagerDashboard = () => {
     try {
       // Load pending approvals for this manager
       const approvalsResponse = await approvalService.getPendingApprovals();
-      setPendingApprovals(approvalsResponse.data || []);
-
+      //console.log('Approvals are ', approvalsResponse);
+      setPendingApprovals(Array.isArray(approvalsResponse) ? approvalsResponse : []);
+      //console.log(approvalsResponse);
       // Load team members (direct reports)
       const usersResponse = await userService.getAllUsers();
+      //console.log('Users are ',usersResponse);
       const directReports = usersResponse.users?.filter(u => 
-        u.manager_id === user.id || u.manager_email === user.email
+        u.manager.id === user.id || u.manager.email === user.email
       ) || [];
       setTeamMembers(directReports);
+      
 
       // Load manager-specific stats
       const reportResponse = await reportService.getOverviewReport();
       
       // Calculate stats
-      const pendingCount = approvalsResponse.data?.length || 0;
-      const teamMembersCount = directReports.length;
+      const pendingCount = Array.isArray(approvalsResponse) ? approvalsResponse.length : 0;
+      const teamMembersCount = usersResponse.users?.length || 0;
       const approvedThisMonth = reportResponse.approvedThisMonth || 0;
       const totalExpenses = reportResponse.totalExpenses || 0;
 
@@ -92,33 +97,45 @@ const ManagerDashboard = () => {
         totalExpenses
       });
 
-      // Load recent activity (mock for now - would need audit log service)
-      setRecentActivity([
-        {
-          id: '1',
-          type: 'approved',
-          description: 'Client Meeting Expense',
-          amount: 250.00,
-          user: 'John Doe',
-          timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
-        },
-        {
-          id: '2',
-          type: 'rejected',
-          description: 'Personal Item',
-          amount: 89.99,
-          user: 'Jane Smith',
-          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000) // 1 day ago
-        },
-        {
-          id: '3',
-          type: 'approved',
-          description: 'Software Subscription',
-          amount: 299.00,
-          user: 'Mike Johnson',
-          timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) // 2 days ago
-        }
-      ]);
+      // Load recent activity dynamically from team expenses
+      const expensesResp = await expenseService.getAllExpenses();
+      const allExpenses = Array.isArray(expensesResp?.data)
+        ? expensesResp.data
+        : Array.isArray(expensesResp)
+        ? expensesResp
+        : [];
+
+      const teamIds = new Set(directReports.map((u) => u.id));
+      const teamExpenses = allExpenses.filter((e) => teamIds.has(e.createdById));
+      //console.log('Team Expenses are: ', teamExpenses);
+
+      const activities = teamExpenses
+      .filter(e => ['APPROVED', 'PAID','REJECTED'].includes(e.status))
+        .map((e) => {
+          // Determine most relevant event and timestamp
+          const status = e.status;
+          let type = null;
+          let ts = e.updatedAt || e.resolvedAt || e.submittedAt || e.createdAt;
+
+          if (status === 'APPROVED' || status === 'PAID') type = 'approved';
+          else if (status === 'REJECTED') type = 'rejected';
+          else if (status === 'SUBMITTED' || status === 'PENDING_APPROVAL') type = 'submitted';
+          else type = 'updated';
+
+          return {
+            id: e.id,
+            type,
+            description: e.title || e.description || 'Expense update',
+            amount: e.amountCompany || 0,
+            user: e.createdBy?.name || 'Unknown',
+            timestamp: new Date(ts),
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 10);
+      
+      console.log("Activities are: ", activities);
+      setRecentActivity(activities);
 
     } catch (error) {
       console.error('Error loading manager dashboard data:', error);
@@ -183,12 +200,15 @@ const ManagerDashboard = () => {
     };
     return colors[category] || 'text-gray-600 bg-gray-50';
   };
-
+  
+  //console.log('Approvals that are pending:', pendingApprovals);
   const filteredApprovals = pendingApprovals.filter(approval =>
-    approval.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    approval.instance.expense.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     approval.user_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    approval.category?.toLowerCase().includes(searchTerm.toLowerCase())
+    approval.instance.expense.category?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  //console.log('Filtered Approvals are: ',filteredApprovals);
 
   if (isLoading) {
     return (
@@ -198,6 +218,7 @@ const ManagerDashboard = () => {
     );
   }
 
+  console.log("Selected Approvals are :", selectedApproval);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-6">
       {/* Header */}
@@ -345,30 +366,30 @@ const ManagerDashboard = () => {
                     >
                       <TableCell className="font-medium text-slate-900">
                         <div>
-                          <p className="font-semibold">{approval.subject || approval.title || 'Untitled Expense'}</p>
-                          <p className="text-sm text-slate-500 mt-1">{approval.description || approval.note || 'No description'}</p>
+                          <p className="font-semibold">{approval.subject || approval.instance.expense.title || 'Untitled Expense'}</p>
+                          <p className="text-sm text-slate-500 mt-1">{approval.instance.expense.description || approval.note || 'No description'}</p>
                         </div>
                       </TableCell>
                       <TableCell className="text-slate-700">
                         <div className="flex items-center gap-2">
                           <UserIcon className="w-4 h-4 text-slate-400" />
-                          {approval.user_name || approval.user?.name || approval.owner || 'Unknown User'}
+                          {approval.instance.expense.createdBy.name || approval.user?.name || approval.owner || 'Unknown User'}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="secondary" className={getCategoryColor(approval.category)}>
-                          {approval.category || 'Uncategorized'}
+                          {approval.instance.expense.category || 'Uncategorized'}
                         </Badge>
                       </TableCell>
-                      <TableCell>{getStatusBadge(approval.status)}</TableCell>
+                      <TableCell>{getStatusBadge(approval.instance.expense.status)}</TableCell>
                       <TableCell className="text-right text-slate-900 font-semibold">
-                        ${(approval.amountCompany || approval.amount || 0).toFixed(2)}
+                        ₹{(approval.instance.expense.amountCompany || approval.amount || 0).toFixed(2)}
                         <p className="text-sm text-slate-500 font-normal">
                           {approval.currency || 'USD'}
                         </p>
                       </TableCell>
                       <TableCell>
-                        {(approval.status === 'PENDING_APPROVAL' || approval.status === 'SUBMITTED') ? (
+                        {(approval.instance.expense.status === 'PENDING_APPROVAL' || approval.instance.expense.status === 'SUBMITTED') ? (
                           <div className="flex items-center gap-2">
                             <Button
                               size="sm"
@@ -381,7 +402,7 @@ const ManagerDashboard = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.expense_id || approval.id }))}
+                              onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.instance.expense.id || approval.id }))}
                               className="border-blue-200 text-blue-700 hover:bg-blue-50"
                             >
                               <Eye className="w-4 h-4 mr-1" />
@@ -395,12 +416,12 @@ const ManagerDashboard = () => {
                               variant="outline"
                               disabled
                               className={
-                                approval.status === 'APPROVED' 
+                                approval.instance.expense.status === 'APPROVED' 
                                   ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
                                   : 'border-red-200 text-red-700 bg-red-50'
                               }
                             >
-                              {approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}
+                              {approval.instance.expense.status === 'APPROVED' ? 'Approved' : 'Rejected'}
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -409,7 +430,7 @@ const ManagerDashboard = () => {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.expense_id || approval.id }))}>
+                                <DropdownMenuItem onClick={() => navigate(createPageUrl('ExpenseDetails', { id: approval.instance.expense.id || approval.id }))}>
                                   <Eye className="w-4 h-4 mr-2" />
                                   View Details
                                 </DropdownMenuItem>
@@ -565,25 +586,25 @@ const ManagerDashboard = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium text-slate-700">Subject</Label>
-                  <p className="text-sm text-slate-900">{selectedApproval.subject || selectedApproval.title || 'Untitled'}</p>
+                  <p className="text-sm text-slate-900">{selectedApproval.instance.expense.title || selectedApproval.title || 'Untitled'}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-700">Amount</Label>
-                  <p className="text-sm text-slate-900">${(selectedApproval.amountCompany || selectedApproval.amount || 0).toFixed(2)}</p>
+                  <p className="text-sm text-slate-900">${(selectedApproval.instance.expense.amountCompany || selectedApproval.amount || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-700">Category</Label>
-                  <p className="text-sm text-slate-900">{selectedApproval.category || 'Uncategorized'}</p>
+                  <p className="text-sm text-slate-900">{selectedApproval.instance.expense.category || 'Uncategorized'}</p>
                 </div>
                 <div>
                   <Label className="text-sm font-medium text-slate-700">Submitted By</Label>
-                  <p className="text-sm text-slate-900">{selectedApproval.user_name || selectedApproval.user?.name || 'Unknown'}</p>
+                  <p className="text-sm text-slate-900">{selectedApproval.instance.expense.createdBy.name || selectedApproval.user?.name || 'Unknown'}</p>
                 </div>
               </div>
               
               <div>
                 <Label className="text-sm font-medium text-slate-700">Description</Label>
-                <p className="text-sm text-slate-900 mt-1">{selectedApproval.description || selectedApproval.note || 'No description provided'}</p>
+                <p className="text-sm text-slate-900 mt-1">{selectedApproval.instance.expense.description || selectedApproval.note || 'No description provided'}</p>
               </div>
 
               <div>

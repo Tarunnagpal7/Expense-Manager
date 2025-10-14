@@ -26,6 +26,7 @@ export const authService = {
   async getProfile() {
     try {
       const response = await apiReq.get("/auth/profile");
+      console.log("response data is: ", response);
       return response.data;
     } catch (error) {
       throw error.response?.data || error;

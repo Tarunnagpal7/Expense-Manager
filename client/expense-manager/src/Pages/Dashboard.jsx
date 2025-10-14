@@ -56,7 +56,7 @@ export default function Dashboard() {
         setStats({
           totalExpenses: expensesResponse.data?.length || 0,
           pendingCount: expensesResponse.data?.filter(e => e.status === 'SUBMITTED' || e.status === 'PENDING_APPROVAL').length || 0,
-          approvedCount: expensesResponse.data?.filter(e => e.status === 'APPROVED').length || 0,
+          approvedCount: expensesResponse.data?.filter(e => e.status === 'APPROVED' ||e.status === 'PAID').length || 0,
           totalAmount: reportResponse.totalExpenses || 0
         });
       } else if (user.role?.toLowerCase() === 'employee') {
@@ -66,7 +66,7 @@ export default function Dashboard() {
         setStats({
           totalExpenses: myExpensesResponse.data?.length || 0,
           pendingCount: myExpensesResponse.data?.filter(e => e.status === 'SUBMITTED' || e.status === 'PENDING_APPROVAL').length || 0,
-          approvedCount: myExpensesResponse.data?.filter(e => e.status === 'APPROVED').length || 0,
+          approvedCount: myExpensesResponse.data?.filter(e => e.status === 'APPROVED' ||e.status === 'PAID' ).length || 0,
           totalAmount: myExpensesResponse.data?.reduce((sum, e) => sum + (e.amountCompany || 0), 0) || 0
         });
       }
@@ -130,7 +130,7 @@ export default function Dashboard() {
               />
               <StatCard
                 title="Total Amount"
-                value={`${company?.currency_symbol || '$'}${(stats.totalAmount || 0).toFixed(2)}`}
+                value={`${company?.currency_symbol || '₹'}${(stats.totalAmount || 0).toFixed(2)}`}
                 icon={DollarSign}
                 color="purple"
               />
@@ -141,7 +141,7 @@ export default function Dashboard() {
                 <ExpenseTable 
                   expenses={expenses}
                   userRole={user?.role}
-                  currencySymbol={company?.currency_symbol || '$'}
+                  currencySymbol={company?.currency_symbol || '₹'}
                 />
               </div>
 

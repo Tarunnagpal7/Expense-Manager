@@ -38,7 +38,11 @@ const getAllExpenses = async (req, res) => {
   try {
     const expenses = await prisma.expense.findMany({
       where: { companyId: req.user.companyId },
-      include: { receipts: true, approvalInstances: true },
+      include: {
+        receipts: true,
+        approvalInstances: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
     });
     return res.json({ success: true, data: expenses });
   } catch (err) {
@@ -62,7 +66,11 @@ const getExpenseById = async (req, res) => {
 
     const expense = await prisma.expense.findFirst({
       where: { id, companyId: req.user.companyId },
-      include: { receipts: true, approvalInstances: true },
+      include: {
+        receipts: true,
+        approvalInstances: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
     });
     if (!expense)
       return res
@@ -125,7 +133,7 @@ const createExpense = async (req, res) => {
         exchangeRateAtSubmit: exchangeRate,
         companyId: req.user.companyId,
         createdById: req.user.id,
-        status: "DRAFT",
+        status: "SUBMITTED",
       },
     });
 
@@ -229,24 +237,76 @@ const submitExpense = async (req, res) => {
         .status(400)
         .json({ success: false, error: "Invalid expense ID" });
 
-    const expense = await prisma.expense.updateMany({
+    // Fetch the draft expense to validate ownership and company
+    console.log("req.user is ", req.user);
+    console.log("id is ", id);
+    const draft = await prisma.expense.findFirst({
       where: {
         id,
         companyId: req.user.companyId,
         createdById: req.user.id,
-        status: "DRAFT",
+        status: "SUBMITTED",
       },
-      data: { status: "SUBMITTED", submittedAt: new Date() },
     });
 
-    if (expense.count === 0)
+    if (!draft)
       return res.status(404).json({
         success: false,
         error: "Expense not found or cannot be submitted",
       });
+
+    // Find company's default approval flow with ordered steps
+    const defaultFlow = await prisma.approvalFlow.findFirst({
+      where: { companyId: req.user.companyId, isDefault: true },
+      include: { steps: { orderBy: { stepOrder: "asc" } } },
+    });
+
+    // If no flow configured, keep backward-compatible behavior
+    if (!defaultFlow || defaultFlow.steps.length === 0) {
+      await prisma.expense.update({
+        where: { id },
+        data: { status: "SUBMITTED", submittedAt: new Date() },
+      });
+      return res.json({
+        success: true,
+        message: "Expense submitted successfully (no approval flow configured)",
+      });
+    }
+
+    // Create approval instance and first step in a transaction
+    await prisma.$transaction(async (tx) => {
+      // Update expense to pending approval
+      await tx.expense.update({
+        where: { id },
+        data: { status: "PENDING_APPROVAL", submittedAt: new Date() },
+      });
+
+      const firstStepOrder = defaultFlow.steps[0].stepOrder;
+
+      // Create instance
+      const instance = await tx.approvalInstance.create({
+        data: {
+          expenseId: id,
+          flowId: defaultFlow.id,
+          currentStepOrder: firstStepOrder,
+        },
+      });
+
+      // Create only the first step state; subsequent steps will be created by engine when advancing
+      const firstFlowStep = defaultFlow.steps[0];
+      await tx.approvalInstanceStep.create({
+        data: {
+          instanceId: instance.id,
+          stepId: firstFlowStep.id,
+          stepOrder: firstFlowStep.stepOrder,
+          status: "PENDING",
+        },
+      });
+    });
+
     return res.json({
       success: true,
-      message: "Expense submitted successfully",
+      message: "Expense submitted and entered approval workflow",
     });
   } catch (err) {
     console.error(err);
@@ -301,7 +361,11 @@ const getUserExpenses = async (req, res) => {
 
     const expenses = await prisma.expense.findMany({
       where: { createdById: userId, companyId: req.user.companyId },
-      include: { receipts: true, approvalInstances: true },
+      include: {
+        receipts: true,
+        approvalInstances: true,
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
     });
     return res.json({ success: true, data: expenses });
   } catch (err) {

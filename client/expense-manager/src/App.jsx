@@ -41,10 +41,10 @@ function RoleBasedRedirect() {
 
 function App() {
   return (
-    <AuthProvider>
       <Router>
+    <AuthProvider>
         <Toaster position="top-right" />
-        <Routes>
+        <Routes key={location.pathname}>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
@@ -111,8 +111,8 @@ function App() {
           {/* Default redirect */}
           <Route path="*" element={<RoleBasedRedirect />} />
         </Routes>
-      </Router>
     </AuthProvider>
+      </Router>
   );
 }
 

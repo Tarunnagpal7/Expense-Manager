@@ -162,7 +162,7 @@ const monthlyReport = async (req, res) => {
       if (!monthly[month]) monthly[month] = 0;
       monthly[month] += convertedAmount;
     }
-
+    
     res.json({ currency: targetCurrency, data: monthly });
   } catch (err) {
     console.error(err);

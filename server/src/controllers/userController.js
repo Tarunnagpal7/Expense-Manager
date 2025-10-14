@@ -3,9 +3,11 @@ import { AuthService } from "../services/authService.js";
 export class UserController {
   static async getUsers(req, res) {
     try {
+      const isManager = req.user?.role === "MANAGER";
       const users = await prisma.user.findMany({
         where: {
           companyId: req.user.companyId,
+          ...(isManager ? { managerId: req.user.id } : {}),
         },
         select: {
           id: true,

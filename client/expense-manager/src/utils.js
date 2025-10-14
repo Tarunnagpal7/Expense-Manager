@@ -21,6 +21,7 @@ const routes = {
  */
 export function createPageUrl(pageName, params = {}) {
   let url = routes[pageName];
+  //console.log("Url is: ", url);
 
   if (!url) {
     console.warn(`No route found for page: ${pageName}`);

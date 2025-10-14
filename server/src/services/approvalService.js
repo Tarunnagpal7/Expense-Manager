@@ -10,7 +10,13 @@ export async function getPending(userId) {
     },
     include: {
       instance: {
-        include: { expense: true },
+        include: {
+          expense: {
+            include: {
+              createdBy: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
       },
     },
   });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '../../lib/contexts/AuthContext';
@@ -6,6 +6,7 @@ import { useAuth } from '../../lib/contexts/AuthContext';
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
+ 
 
   // Show loading spinner while authentication is being checked
   if (loading) {
@@ -21,14 +22,19 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role-based access if specific roles are required
-  if (allowedRoles.length > 0) {
-    const userRole = user.role?.toLowerCase();
-    const hasPermission = allowedRoles.some(role => 
-      role.toLowerCase() === userRole
-    );
+  
 
+  // Check role-based access if specific roles are required
+  if (allowedRoles.length > 0 && user.role) {
+    console.log(user.role);
+    console.log(allowedRoles);
+    const userRole = user.role?.toLowerCase();
+    
+    const hasPermission = allowedRoles.includes(userRole)
+    
+    console.log(hasPermission);
     if (!hasPermission) {
+      toast.dismiss();
       toast.error('You do not have permission to access this page');
       
       // Redirect to appropriate dashboard based on user role

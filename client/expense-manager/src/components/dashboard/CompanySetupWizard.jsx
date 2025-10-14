@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Company } from "@/entities/Company";
-import { User } from "@/entities/User";
+//import { User } from "@/entities/User";
 import { ApprovalSequence } from "@/entities/ApprovalSequence";
 import { Building2, Globe, DollarSign, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";

@@ -4,6 +4,7 @@ import {
   decide,
   getInstance,
 } from "../services/approvalService.js";
+import prisma from "../lib/prisma.js";
 
 //import approvalService from "../services/approvalService.js";
 
@@ -38,6 +39,24 @@ export const getApprovalInstance = async (req, res) => {
     const { expenseId } = req.params;
     const history = await getInstance(expenseId);
     res.json(history);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Get company-wide pending approval count (admin-only)
+export const getCompanyPendingApprovalsCount = async (req, res) => {
+  try {
+    const companyId = req.user.companyId;
+    const count = await prisma.approvalInstanceStep.count({
+      where: {
+        status: "PENDING",
+        step: {
+          flow: { companyId },
+        },
+      },
+    });
+    res.json({ count });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

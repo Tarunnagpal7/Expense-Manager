@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { authService } from "@/lib/services/authService";
-import { companyService } from "@/lib/services/companyService";
+import { approvalFlowService } from "@/lib/services/approvalFlowService";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 export default function ApprovalSettings() {
   const [user, setUser] = useState(null);
   const [company, setCompany] = useState(null);
+  const [flow, setFlow] = useState(null);
   const [sequences, setSequences] = useState([]);
   const [rules, setRules] = useState([]);
   const [newSequence, setNewSequence] = useState({
@@ -33,9 +34,50 @@ export default function ApprovalSettings() {
 
       if (userData.company) {
         setCompany(userData.company);
-        // TODO: Implement approval sequences and rules API calls
-        setSequences([]);
-        setRules([]);
+        // Load or create default approval flow for this company
+        const allFlows = await approvalFlowService.listFlows();
+        const companyFlows = (allFlows || []).filter(f => f.companyId === userData.company.id);
+        let selectedFlow = companyFlows.find(f => f.isDefault) || companyFlows[0] || null;
+
+        if (!selectedFlow) {
+          selectedFlow = await approvalFlowService.createFlow({
+            companyId: userData.company.id,
+            name: "Default Flow",
+            description: "Auto-created default approval flow",
+            ruleType: "PERCENTAGE",
+            percentageThreshold: 0,
+            isDefault: true,
+          });
+        }
+
+        // Ensure we have latest with steps included
+        const flowWithSteps = await approvalFlowService.getFlow(selectedFlow.id);
+        setFlow(flowWithSteps);
+
+        const orderedSteps = (flowWithSteps.steps || [])
+          .slice()
+          .sort((a, b) => a.stepOrder - b.stepOrder);
+
+        setSequences(orderedSteps.map(s => ({
+          id: s.id,
+          sequence_order: s.stepOrder,
+          role: (s.approverRole || '').toLowerCase(),
+          description: '',
+        })));
+
+        // Display basic rule info from flow
+        setRules([
+          {
+            id: flowWithSteps.id,
+            rule_type: flowWithSteps.ruleType,
+            description:
+              flowWithSteps.ruleType === 'PERCENTAGE'
+                ? `Requires approval chain based on amount threshold (${flowWithSteps.percentageThreshold ?? 0}%).`
+                : flowWithSteps.ruleType === 'SPECIFIC'
+                ? 'Routes to a specific approver before continuing.'
+                : 'Hybrid rule combining specific approver and percentage checks.',
+          },
+        ]);
       }
     } catch (error) {
       console.error("Error loading approval settings:", error);
@@ -43,12 +85,12 @@ export default function ApprovalSettings() {
   };
 
   const handleAddSequence = async () => {
-    if (!newSequence.sequence_order || !company) return;
+    if (!newSequence.sequence_order || !company || !flow) return;
 
-    await ApprovalSequence.create({
-      ...newSequence,
-      company_id: company.id,
-      sequence_order: parseInt(newSequence.sequence_order)
+    const approverRole = newSequence.role === 'manager' ? 'MANAGER' : 'ADMIN';
+    await approvalFlowService.addStep(flow.id, {
+      approverRole,
+      stepOrder: parseInt(newSequence.sequence_order, 10),
     });
 
     setNewSequence({
@@ -62,7 +104,7 @@ export default function ApprovalSettings() {
   };
 
   const handleDeleteSequence = async (id) => {
-    await ApprovalSequence.delete(id);
+    await approvalFlowService.deleteStep(id);
     loadData();
   };
 

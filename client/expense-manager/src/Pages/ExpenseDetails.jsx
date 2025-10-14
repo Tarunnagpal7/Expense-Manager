@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User } from "@/entities/User";
-import { Company } from "@/entities/Company";
-import { Expense } from "@/entities/Expense";
-import { ExpenseApproval } from "@/entities/ExpenseApproval";
-import { ApprovalSequence } from "@/entities/ApprovalSequence";
-import { AuditLog } from "@/entities/AuditLog";
+import { expenseService } from '../lib/services/expenseService';
+import { approvalService } from '../lib/services/approvalService';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,129 +10,86 @@ import { createPageUrl } from "@/utils";
 import { ArrowLeft, CheckCircle, XCircle, Clock, FileText, User as UserIcon, Calendar, DollarSign } from "lucide-react";
 import { format } from "date-fns";
 import { motion } from "framer-motion";
+import { useAuth } from '../lib/contexts/AuthContext';
+import { useParams } from "react-router-dom";
+
 
 import ApprovalTimeline from "../components/expense/ApprovalTimeline";
 
-export default function ExpenseDetails() {
+const ExpenseDetails=()=> {
   const navigate = useNavigate();
-  const urlParams = new URLSearchParams(window.location.search);
-  const expenseId = urlParams.get('id');
+  const { id } = useParams();
+  console.log("Expense ID:", id);
 
-  const [user, setUser] = useState(null);
+  //const expenseId = urlParams.get('id');
+  console.log("Expense Id : ", id);
+
   const [company, setCompany] = useState(null);
   const [expense, setExpense] = useState(null);
   const [approvals, setApprovals] = useState([]);
   const [canApprove, setCanApprove] = useState(false);
   const [comments, setComments] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const { user } = useAuth();
+  const [currentInstanceStepId, setCurrentInstanceStepId] = useState(null);
+
+ 
 
   const loadData = useCallback(async () => {
-    if (!expenseId) return;
+    if (!id) return;
 
-    const userData = await User.me();
-    setUser(userData);
+    // Fetch expense details from backend
+    const expenseResp = await expenseService.getExpenseById(id);
+    const fetchedExpense = expenseResp?.data || expenseResp; // handle either {success,data} or direct
+    console.log('Expense is ', fetchedExpense);
+    setExpense(fetchedExpense);
 
-    if (userData.company_id) {
-      const companies = await Company.filter({ id: userData.company_id });
-      if (companies.length > 0) setCompany(companies[0]);
+    // Fetch approval instance and map to timeline approvals
+    const instance = await approvalService.getApprovalInstance(id);
+    if (instance) {
+      const mappedApprovals = (instance.stepsState || [])
+        .sort((a, b) => a.stepOrder - b.stepOrder)
+        .map((s) => ({
+          id: s.id,
+          sequence_order: s.stepOrder,
+          approver_name: s.decisions?.[0]?.approver?.name || undefined,
+          approver_email: s.decisions?.[0]?.approver?.email || undefined,
+          status: (s.status || 'PENDING').toLowerCase(),
+          approved_at: s.decisions?.find(d => d.decision === 'APPROVED')?.decidedAt || null,
+          comments: s.decisions?.[0]?.comment || undefined,
+        }));
+      setApprovals(mappedApprovals);
+
+      // Determine if current user can approve this expense now
+      const pendingStep = (instance.stepsState || []).find((s) => s.status === 'PENDING');
+      if (pendingStep) {
+        setCurrentInstanceStepId(pendingStep.id);
+        // As pending retrieval uses step.approverUserId, check via pending approvals list for reliability
+        const myPendings = await approvalService.getPendingApprovals();
+        const isPendingForMe = Array.isArray(myPendings) && myPendings.some((p) => p.id === pendingStep.id);
+        setCanApprove(!!isPendingForMe);
+      } else {
+        setCanApprove(false);
+      }
     }
-
-    const expenses = await Expense.filter({ id: expenseId });
-    if (expenses.length > 0) {
-      setExpense(expenses[0]);
-
-      const expenseApprovals = await ExpenseApproval.filter(
-        { expense_id: expenseId },
-        'sequence_order'
-      );
-      setApprovals(expenseApprovals);
-
-      const pendingApproval = expenseApprovals.find(
-        a => a.status === 'pending' && a.approver_email === userData.email
-      );
-      setCanApprove(!!pendingApproval);
-    }
-  }, [expenseId]);
+  }, [id]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  console.log('User2 is: ', user);
+
   const handleApproval = async (approved) => {
     setIsProcessing(true);
     try {
-      const currentApproval = approvals.find(
-        a => a.status === 'pending' && a.approver_email === user.email
+      if (!currentInstanceStepId) return;
+      await approvalService.decideApproval(
+        currentInstanceStepId,
+        approved ? 'APPROVED' : 'REJECTED',
+        comments
       );
-
-      if (currentApproval) {
-        await ExpenseApproval.update(currentApproval.id, {
-          status: approved ? 'approved' : 'rejected',
-          comments,
-          approved_at: new Date().toISOString()
-        });
-
-        if (!approved) {
-          await Expense.update(expenseId, {
-            status: 'rejected',
-            rejection_reason: comments
-          });
-
-          await AuditLog.create({
-            user_email: user.email,
-            user_name: user.full_name,
-            action: `Rejected expense #${expenseId.slice(0, 8)}`,
-            reference_id: expenseId,
-            reference_type: 'expense',
-            details: comments
-          });
-        } else {
-          const sequences = await ApprovalSequence.filter(
-            { company_id: expense.company_id },
-            'sequence_order'
-          );
-          const nextSequence = sequences.find(s => s.sequence_order > currentApproval.sequence_order);
-
-          if (nextSequence) {
-            let nextApproverEmail = null;
-
-            if (nextSequence.specific_user_email) {
-              nextApproverEmail = nextSequence.specific_user_email;
-            } else if (nextSequence.role === 'admin') {
-              nextApproverEmail = company.admin_email;
-            }
-
-            if (nextApproverEmail) {
-              await ExpenseApproval.create({
-                expense_id: expenseId,
-                approver_email: nextApproverEmail,
-                approver_name: 'Approver',
-                sequence_order: nextSequence.sequence_order,
-                status: 'pending'
-              });
-
-              await Expense.update(expenseId, {
-                current_approval_step: nextSequence.sequence_order
-              });
-            }
-          } else {
-            await Expense.update(expenseId, {
-              status: 'approved',
-              final_approved_by: user.email
-            });
-          }
-
-          await AuditLog.create({
-            user_email: user.email,
-            user_name: user.full_name,
-            action: `Approved expense #${expenseId.slice(0, 8)}`,
-            reference_id: expenseId,
-            reference_type: 'expense'
-          });
-        }
-
-        navigate(createPageUrl("Dashboard"));
-      }
+      navigate(createPageUrl("Dashboard"));
     } catch (error) {
       console.error("Error processing approval:", error);
     }
@@ -152,11 +105,15 @@ export default function ExpenseDetails() {
   }
 
   const statusColors = {
-    pending: { bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-200" },
+    PENDING_APPROVAL: { bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-200" },
+    SUBMITTED: { bg: "bg-orange-100", text: "text-orange-800", border: "border-orange-200" },
     in_review: { bg: "bg-blue-100", text: "text-blue-800", border: "border-blue-200" },
     approved: { bg: "bg-emerald-100", text: "text-emerald-800", border: "border-emerald-200" },
     rejected: { bg: "bg-red-100", text: "text-red-800", border: "border-red-200" }
   };
+  
+  console.log(expense);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 p-4 md:p-8">
@@ -172,7 +129,7 @@ export default function ExpenseDetails() {
           </Button>
           <div className="flex-1">
             <h1 className="text-3xl font-bold text-slate-900">Expense Details</h1>
-            <p className="text-slate-600 mt-1">ID: {expenseId.slice(0, 16)}...</p>
+            <p className="text-slate-600 mt-1">ID: {String(id).slice(0, 16)}...</p>
           </div>
           <Badge className={`${statusColors[expense.status].bg} ${statusColors[expense.status].text} ${statusColors[expense.status].border} border-2 text-sm px-4 py-2`}>
             {expense.status.replace('_', ' ').toUpperCase()}
@@ -195,7 +152,7 @@ export default function ExpenseDetails() {
                       <UserIcon className="w-4 h-4" />
                       <span className="text-sm font-medium">Employee</span>
                     </div>
-                    <p className="font-semibold text-slate-900">{expense.user_name}</p>
+                    <p className="font-semibold text-slate-900">{expense.createdBy.name || 'Employee'}</p>
                   </div>
 
                   <div className="space-y-3">
@@ -204,7 +161,7 @@ export default function ExpenseDetails() {
                       <span className="text-sm font-medium">Date</span>
                     </div>
                     <p className="font-semibold text-slate-900">
-                      {format(new Date(expense.expense_date), 'MMMM d, yyyy')}
+                      {expense.dateOfExpense ? format(new Date(expense.dateOfExpense), 'MMMM d, yyyy') : 'N/A'}
                     </p>
                   </div>
 
@@ -214,10 +171,10 @@ export default function ExpenseDetails() {
                       <span className="text-sm font-medium">Amount</span>
                     </div>
                     <p className="font-bold text-2xl text-emerald-600">
-                      {company?.currency_symbol}{expense.amount_converted?.toFixed(2)}
+                      {(company?.currency_symbol || '')}{(expense.amountCompany ?? 0).toFixed(2)}
                     </p>
                     <p className="text-xs text-slate-500">
-                      Original: {expense.currency_original} {expense.amount_original?.toFixed(2)}
+                      Original: {expense.currencyOriginal} {(expense.amountOriginal ?? 0).toFixed(2)}
                     </p>
                   </div>
 
@@ -246,22 +203,22 @@ export default function ExpenseDetails() {
                   </div>
                 )}
 
-                {expense.receipt_url && (
+                {Array.isArray(expense.receipts) && expense.receipts.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-sm font-medium text-slate-600">Receipt</p>
                     <a
-                      href={expense.receipt_url}
+                      href={expense.receipts[0].url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block"
                     >
-                      {expense.receipt_url.endsWith('.pdf') ? (
+                      {String(expense.receipts[0].url).endsWith('.pdf') ? (
                         <div className="border-2 border-slate-200 rounded-xl p-4 hover:border-emerald-500 transition-colors">
                           <p className="text-emerald-600 font-medium">View PDF Receipt</p>
                         </div>
                       ) : (
                         <img
-                          src={expense.receipt_url}
+                          src={expense.receipts[0].url}
                           alt="Receipt"
                           className="max-w-full rounded-xl border-2 border-slate-200 hover:border-emerald-500 transition-colors"
                         />
@@ -322,8 +279,8 @@ export default function ExpenseDetails() {
           <div>
             <ApprovalTimeline
               approvals={approvals}
-              currentStep={expense.current_approval_step}
-              status={expense.status}
+              currentStep={expense?.approvalInstances?.[0]?.currentStepOrder || 0}
+              status={expense.status?.toLowerCase?.()}
             />
           </div>
         </div>
@@ -331,3 +288,5 @@ export default function ExpenseDetails() {
     </div>
   );
 }
+
+export default ExpenseDetails;

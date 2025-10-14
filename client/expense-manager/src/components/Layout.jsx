@@ -30,12 +30,15 @@ import {
 } from "./ui/sidebar";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
+import { approvalService } from "../lib/services/approvalService";
+import { reportService } from "../lib/services/reportService";
 
 export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [quickStats, setQuickStats] = useState({ pending: 0, monthSpend: 0 });
 
   const handleLogout = async () => {
     await logout();
@@ -49,6 +52,28 @@ export default function Layout({ children, currentPageName }) {
   const handleSignup = () => {
     navigate("/signup"); // Navigate to signup page
   };
+
+  useEffect(() => {
+    const loadQuickStats = async () => {
+      try {
+        if (user?.role?.toLowerCase() !== "admin") return;
+        // Pending approvals count (company-wide)
+        const pendingRes = await approvalService.getCompanyPendingCount();
+        const pending = pendingRes?.count || 0;
+        // This month spend (convert from monthly report)
+        const monthly = await reportService.getMonthlyReport();
+        // monthly.data is an object of { 'YYYY-MM': amount }
+        const keys = Object.keys(monthly?.data || {}).sort();
+        const currentMonthKey = keys[keys.length - 1];
+        const monthSpend = currentMonthKey ? monthly.data[currentMonthKey] : 0;
+        setQuickStats({ pending, monthSpend });
+      } catch (e) {
+        // fail silently to keep sidebar resilient
+        setQuickStats({ pending: 0, monthSpend: 0 });
+      }
+    };
+    loadQuickStats();
+  }, [user]);
 
   const navigationItems = [
     {
@@ -154,11 +179,11 @@ export default function Layout({ children, currentPageName }) {
                   <div className="px-3 py-2 space-y-3">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">Pending Approvals</span>
-                      <span className="font-bold text-emerald-600">0</span>
+                      <span className="font-bold text-emerald-600">{quickStats.pending}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-slate-600">This Month</span>
-                      <span className="font-bold text-slate-900">$0</span>
+                      <span className="font-bold text-slate-900">₹{quickStats.monthSpend}</span>
                     </div>
                   </div>
                 </SidebarGroupContent>

@@ -130,10 +130,11 @@ export default function SubmitExpense() {
         currencyOriginal: formData.currency_original,
         amountCompany: parseFloat(convertedAmount),
         exchangeRateAtSubmit: parseFloat(convertedAmount) / parseFloat(formData.amount_original),
-        status: 'DRAFT'
+        status: 'SUBMITTED'
       };
 
       const expense = await expenseService.createExpense(expenseData);
+      console.log('Expense is ',expense);
 
       setShowSuccess(true);
       setTimeout(() => {
@@ -252,14 +253,16 @@ export default function SubmitExpense() {
                       rows={4}
                     />
                   </div>
-
+                   
+                  
                   <Button
                     type="submit"
                     disabled={isSubmitting || !formData.category || !formData.amount_original || !company || isLoading}
                     className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 h-12"
                   >
-                    {isLoading ? 'Loading...' : isSubmitting ? 'Submitting...' : 'Submit Expense'}
+                    {isLoading ? 'Loading...' : isSubmitting ? 'Sunmitting...' : 'Submit Expense'}
                   </Button>
+                  
                 </form>
               </CardContent>
             </Card>
